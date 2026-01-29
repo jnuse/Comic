@@ -80,6 +80,11 @@ function handleZoomOut() {
   }
 }
 
+function handleRestoreZoom(zoomMode: string, customZoom: number) {
+  settingsStore.setZoomMode(zoomMode as any);
+  settingsStore.setCustomZoom(customZoom);
+}
+
 async function handleBookmarkSelect(bookmark: Bookmark) {
   // 如果是不同的漫画，需要先打开
   if (!currentComic.value || currentComic.value.path !== bookmark.comicPath) {
@@ -132,7 +137,8 @@ onMounted(async () => {
         @close="handleCloseReader" 
         @zoom-in="handleZoomIn" 
         @zoom-out="handleZoomOut"
-        @toggle-fullscreen="toggleFullscreen" 
+        @toggle-fullscreen="toggleFullscreen"
+        @restore-zoom="handleRestoreZoom"
       />
     </div>
 
@@ -180,7 +186,8 @@ onMounted(async () => {
             @close="handleCloseReader" 
             @zoom-in="handleZoomIn" 
             @zoom-out="handleZoomOut"
-            @toggle-fullscreen="toggleFullscreen" 
+            @toggle-fullscreen="toggleFullscreen"
+            @restore-zoom="handleRestoreZoom"
           />
         </div>
 

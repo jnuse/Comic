@@ -99,6 +99,7 @@ const emit = defineEmits<{
     (e: 'zoom-out'): void;
     (e: 'toggle-fullscreen'): void;
     (e: 'image-change', index: number): void;
+    (e: 'restore-zoom', zoomMode: string, customZoom: number): void;
 }>();
 
 const comicStore = useComicStore();
@@ -121,8 +122,14 @@ watch(
     () => props.comicPath,
     async (newPath, oldPath) => {
         if (newPath !== oldPath && oldPath) {
-            // 保存旧漫画的进度
-            progressStore.saveProgress(oldPath, currentImageIndex.value, scrollPosition.value);
+            // 保存旧漫画的进度（包括缩放设置）
+            progressStore.saveProgress(
+                oldPath, 
+                currentImageIndex.value, 
+                scrollPosition.value,
+                props.zoomMode,
+                props.customZoom
+            );
             
             // 重置状态
             loadedImages.value = {};
@@ -321,12 +328,14 @@ async function loadVisibleImages() {
 // 节流的加载函数
 const throttledLoadImages = useThrottleFn(loadVisibleImages, 100);
 
-// 防抖的保存进度
+// 防抖的保存进度（包括缩放设置）
 const debouncedSaveProgress = useDebounceFn(() => {
     progressStore.saveProgress(
         props.comicPath,
         currentImageIndex.value,
-        scrollPosition.value
+        scrollPosition.value,
+        props.zoomMode,
+        props.customZoom
     );
 }, 1000);
 
@@ -372,6 +381,11 @@ async function restoreProgress() {
     if (progress) {
         currentImageIndex.value = progress.lastImageIndex;
 
+        // 恢复缩放设置
+        if (progress.zoomMode && progress.customZoom !== undefined) {
+            emit('restore-zoom', progress.zoomMode, progress.customZoom);
+        }
+
         // 先加载目标图片
         await loadImage(progress.lastImageIndex);
 
@@ -405,11 +419,13 @@ onMounted(async () => {
 
 // 清理
 onUnmounted(() => {
-    // 保存最终进度
+    // 保存最终进度（包括缩放设置）
     progressStore.saveProgress(
         props.comicPath,
         currentImageIndex.value,
-        scrollPosition.value
+        scrollPosition.value,
+        props.zoomMode,
+        props.customZoom
     );
 });
 

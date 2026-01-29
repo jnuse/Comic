@@ -52,6 +52,8 @@ export interface ReadingProgress {
   lastImageIndex: number;
   scrollPosition: number;
   lastReadTime: number;
+  zoomMode?: ZoomMode;
+  customZoom?: number;
 }
 
 // 书签

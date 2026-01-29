@@ -16,6 +16,14 @@ pub struct ReadingProgress {
     pub scroll_position: f64,
     #[serde(rename = "lastReadTime")]
     pub last_read_time: u64,
+    #[serde(rename = "zoomMode", default = "default_zoom_mode")]
+    pub zoom_mode: Option<String>,
+    #[serde(rename = "customZoom", default)]
+    pub custom_zoom: Option<f64>,
+}
+
+fn default_zoom_mode() -> Option<String> {
+    None
 }
 
 /// 书签

@@ -120,12 +120,16 @@ export const useProgressStore = defineStore("progress", () => {
     comicPath: string,
     imageIndex: number,
     scrollPosition: number,
+    zoomMode?: string,
+    customZoom?: number,
   ) {
     const progress: ReadingProgress = {
       comicPath,
       lastImageIndex: imageIndex,
       scrollPosition,
       lastReadTime: Date.now(),
+      zoomMode: zoomMode as ReadingProgress['zoomMode'],
+      customZoom,
     };
 
     try {
