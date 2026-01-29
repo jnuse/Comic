@@ -47,6 +47,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
+          cache-on-failure: true
+
+      - name: Enable incremental compilation
+        shell: pwsh
+        run: |
+          echo "CARGO_INCREMENTAL=1" >> $env:GITHUB_ENV
 
       - name: Install frontend dependencies
         run: npm ci
