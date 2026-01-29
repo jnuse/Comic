@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import type { ImageInfo, ZoomMode, AspectRatio } from '../types';
 import { useComicStore, useBookmarkStore, useProgressStore } from '../stores';
 import { useDebounceFn, useThrottleFn } from '@vueuse/core';
@@ -114,6 +114,33 @@ const isLoading = ref(false);
 const loadedImages = ref<Record<number, string>>({});
 const currentImageIndex = ref(0);
 const scrollPosition = ref(0);
+const isZooming = ref(false); // 标记是否正在缩放
+
+// 监听缩放变化，保持当前图片位置
+watch(
+    () => [props.customZoom, props.zoomMode],
+    async () => {
+        if (isZooming.value) return;
+        isZooming.value = true;
+        
+        // 记住当前图片索引
+        const targetIndex = currentImageIndex.value;
+        
+        // 等待 DOM 更新
+        await nextTick();
+        
+        // 滚动到当前图片
+        const el = imageRefs.value.get(targetIndex);
+        if (el && viewerRef.value) {
+            el.scrollIntoView({ behavior: 'instant', block: 'start' });
+        }
+        
+        // 延迟重置标记，避免滚动事件干扰
+        setTimeout(() => {
+            isZooming.value = false;
+        }, 100);
+    }
+);
 
 // 计算属性
 const containerWidth = computed(() => {
@@ -274,7 +301,11 @@ const debouncedSaveProgress = useDebounceFn(() => {
 function handleScroll() {
     if (!viewerRef.value) return;
     scrollPosition.value = viewerRef.value.scrollTop;
-    throttledLoadImages();
+    
+    // 缩放过程中不更新图片索引
+    if (!isZooming.value) {
+        throttledLoadImages();
+    }
     debouncedSaveProgress();
 }
 
