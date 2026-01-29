@@ -18,6 +18,43 @@
                 </div>
             </div>
 
+            <!-- 阅读模式 -->
+            <div class="setting-group">
+                <label class="setting-label">阅读模式</label>
+                <div class="setting-options">
+                    <button v-for="option in readerModeOptions" :key="option.value" class="option-btn"
+                        :class="{ active: settings.readerMode === option.value }"
+                        @click="settingsStore.setReaderMode(option.value)">
+                        {{ option.icon }} {{ option.label }}
+                    </button>
+                </div>
+                <p class="setting-hint">嵌入模式：保留文件树以便快速切换漫画</p>
+            </div>
+
+            <!-- 图片宽高比 -->
+            <div class="setting-group">
+                <label class="setting-label">图片显示比例</label>
+                <div class="setting-options">
+                    <button v-for="option in aspectRatioOptions" :key="option.value" class="option-btn"
+                        :class="{ active: settings.aspectRatio === option.value }"
+                        @click="settingsStore.setAspectRatio(option.value)">
+                        {{ option.label }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- 自定义宽高比 -->
+            <div class="setting-group" v-if="settings.aspectRatio === 'custom'">
+                <label class="setting-label">自定义比例</label>
+                <div class="custom-aspect-group">
+                    <input type="number" min="1" max="100" :value="settings.customAspectWidth"
+                        @input="handleCustomAspectWidthChange" class="aspect-input" placeholder="宽" />
+                    <span class="aspect-separator">:</span>
+                    <input type="number" min="1" max="100" :value="settings.customAspectHeight"
+                        @input="handleCustomAspectHeightChange" class="aspect-input" placeholder="高" />
+                </div>
+            </div>
+
             <!-- 缩放模式 -->
             <div class="setting-group">
                 <label class="setting-label">缩放模式</label>
@@ -56,7 +93,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useSettingsStore } from '../stores';
-import type { Theme, ZoomMode } from '../types';
+import type { Theme, ZoomMode, ReaderMode, AspectRatio } from '../types';
 
 defineEmits<{
     (e: 'close'): void;
@@ -69,6 +106,21 @@ const themeOptions: { value: Theme; label: string; icon: string }[] = [
     { value: 'light', label: '浅色', icon: '☀️' },
     { value: 'dark', label: '深色', icon: '🌙' },
     { value: 'system', label: '系统', icon: '💻' },
+];
+
+const readerModeOptions: { value: ReaderMode; label: string; icon: string }[] = [
+    { value: 'embedded', label: '嵌入', icon: '📑' },
+    { value: 'fullscreen', label: '全屏', icon: '🖥️' },
+];
+
+const aspectRatioOptions: { value: AspectRatio; label: string }[] = [
+    { value: 'auto', label: '自动' },
+    { value: '3:4', label: '3:4' },
+    { value: '9:16', label: '9:16' },
+    { value: '1:1', label: '1:1' },
+    { value: '4:3', label: '4:3' },
+    { value: '16:9', label: '16:9' },
+    { value: 'custom', label: '自定义' },
 ];
 
 const zoomOptions: { value: ZoomMode; label: string }[] = [
@@ -86,6 +138,18 @@ function handleZoomChange(event: Event) {
 function handlePreloadChange(event: Event) {
     const target = event.target as HTMLInputElement;
     settingsStore.setPreloadCount(Number(target.value));
+}
+
+function handleCustomAspectWidthChange(event: Event) {
+    const target = event.target as HTMLInputElement;
+    const width = Number(target.value) || 3;
+    settingsStore.setCustomAspectRatio(width, settings.value.customAspectHeight);
+}
+
+function handleCustomAspectHeightChange(event: Event) {
+    const target = event.target as HTMLInputElement;
+    const height = Number(target.value) || 4;
+    settingsStore.setCustomAspectRatio(settings.value.customAspectWidth, height);
 }
 </script>
 
@@ -199,5 +263,39 @@ function handlePreloadChange(event: Event) {
     min-width: 50px;
     text-align: right;
     font-weight: 500;
+}
+
+.setting-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    margin-bottom: 0;
+}
+
+.custom-aspect-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.aspect-input {
+    width: 60px;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    font-size: 14px;
+    text-align: center;
+}
+
+.aspect-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.aspect-separator {
+    font-weight: bold;
+    font-size: 16px;
 }
 </style>

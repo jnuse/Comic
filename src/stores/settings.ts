@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, watch, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import type { Settings, Theme, ZoomMode } from "../types";
+import type { Settings, Theme, ZoomMode, ReaderMode, AspectRatio } from "../types";
 import { defaultSettings } from "../types";
 import { usePreferredDark } from "@vueuse/core";
 
@@ -72,6 +72,25 @@ export const useSettingsStore = defineStore("settings", () => {
     saveSettings();
   }
 
+  // 设置阅读器模式
+  function setReaderMode(mode: ReaderMode) {
+    settings.value.readerMode = mode;
+    saveSettings();
+  }
+
+  // 设置图片比例
+  function setAspectRatio(ratio: AspectRatio) {
+    settings.value.aspectRatio = ratio;
+    saveSettings();
+  }
+
+  // 设置自定义比例
+  function setCustomAspectRatio(width: number, height: number) {
+    settings.value.customAspectWidth = Math.max(1, Math.min(100, width));
+    settings.value.customAspectHeight = Math.max(1, Math.min(100, height));
+    saveSettings();
+  }
+
   // 监听主题变化，应用到 HTML
   watch(
     actualTheme,
@@ -99,5 +118,8 @@ export const useSettingsStore = defineStore("settings", () => {
     setZoomMode,
     setCustomZoom,
     setPreloadCount,
+    setReaderMode,
+    setAspectRatio,
+    setCustomAspectRatio,
   };
 });

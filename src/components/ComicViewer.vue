@@ -1,6 +1,11 @@
 <template>
     <div ref="viewerRef" class="comic-viewer"
-        :class="{ 'zoom-fit-width': zoomMode === 'fit-width', 'zoom-fit-height': zoomMode === 'fit-height', 'zoom-original': zoomMode === 'original' }"
+        :class="{ 
+            'zoom-fit-width': zoomMode === 'fit-width', 
+            'zoom-fit-height': zoomMode === 'fit-height', 
+            'zoom-original': zoomMode === 'original',
+            'is-fullscreen': isFullscreen 
+        }"
         @scroll="handleScroll">
         <!-- 加载中 -->
         <div v-if="isLoading" class="loading-overlay">
@@ -13,8 +18,9 @@
             <div v-for="(image, index) in images" :key="image.path" :ref="(el) => setImageRef(index, el as HTMLElement)"
                 class="image-wrapper" :data-index="index">
                 <img v-if="loadedImages[index]" :src="loadedImages[index]" :alt="image.name" class="comic-image"
+                    :style="aspectRatioStyle"
                     @load="handleImageLoad(index)" @error="handleImageError(index)" />
-                <div v-else class="image-placeholder">
+                <div v-else class="image-placeholder" :style="aspectRatioStyle">
                     <span>{{ index + 1 }} / {{ images.length }}</span>
                     <span class="image-name">{{ image.name }}</span>
                 </div>
@@ -50,8 +56,13 @@
                 </button>
             </div>
 
+            <!-- 全屏切换按钮 -->
+            <button class="toolbar-btn" @click="$emit('toggle-fullscreen')" :title="isFullscreen ? '嵌入模式' : '全屏模式'">
+                {{ isFullscreen ? '🗗' : '🗖' }}
+            </button>
+
             <!-- 返回按钮 -->
-            <button class="toolbar-btn" @click="$emit('close')" title="返回">
+            <button class="toolbar-btn" @click="$emit('close')" title="关闭漫画">
                 ✖️
             </button>
         </div>
@@ -65,7 +76,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import type { ImageInfo, ZoomMode } from '../types';
+import type { ImageInfo, ZoomMode, AspectRatio } from '../types';
 import { useComicStore, useBookmarkStore, useProgressStore } from '../stores';
 import { useDebounceFn, useThrottleFn } from '@vueuse/core';
 
@@ -76,12 +87,17 @@ const props = defineProps<{
     zoomMode: ZoomMode;
     customZoom: number;
     preloadCount: number;
+    aspectRatio: AspectRatio;
+    customAspectWidth: number;
+    customAspectHeight: number;
+    isFullscreen: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'zoom-in'): void;
     (e: 'zoom-out'): void;
+    (e: 'toggle-fullscreen'): void;
     (e: 'image-change', index: number): void;
 }>();
 
@@ -113,6 +129,44 @@ const containerWidth = computed(() => {
         default:
             return '100%';
     }
+});
+
+// 计算宽高比样式
+const aspectRatioStyle = computed(() => {
+    if (props.aspectRatio === 'auto') {
+        return {};
+    }
+
+    let width: number, height: number;
+
+    switch (props.aspectRatio) {
+        case '3:4':
+            width = 3; height = 4;
+            break;
+        case '9:16':
+            width = 9; height = 16;
+            break;
+        case '1:1':
+            width = 1; height = 1;
+            break;
+        case '4:3':
+            width = 4; height = 3;
+            break;
+        case '16:9':
+            width = 16; height = 9;
+            break;
+        case 'custom':
+            width = props.customAspectWidth || 3;
+            height = props.customAspectHeight || 4;
+            break;
+        default:
+            return {};
+    }
+
+    return {
+        aspectRatio: `${width} / ${height}`,
+        objectFit: 'contain' as const,
+    };
 });
 
 const progressPercent = computed(() => {

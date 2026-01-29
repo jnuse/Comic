@@ -70,12 +70,22 @@ export type Theme = "light" | "dark" | "system";
 // 缩放模式
 export type ZoomMode = "fit-width" | "fit-height" | "original" | "custom";
 
+// 阅读器显示模式
+export type ReaderMode = "embedded" | "fullscreen";
+
+// 图片比例预设
+export type AspectRatio = "auto" | "3:4" | "9:16" | "1:1" | "4:3" | "16:9" | "custom";
+
 // 设置
 export interface Settings {
   theme: Theme;
   zoomMode: ZoomMode;
   customZoom: number;
   preloadCount: number;
+  readerMode: ReaderMode;
+  aspectRatio: AspectRatio;
+  customAspectWidth: number;
+  customAspectHeight: number;
 }
 
 // 应用数据
@@ -92,4 +102,8 @@ export const defaultSettings: Settings = {
   zoomMode: "fit-width",
   customZoom: 100,
   preloadCount: 3,
+  readerMode: "embedded",
+  aspectRatio: "auto",
+  customAspectWidth: 3,
+  customAspectHeight: 4,
 };

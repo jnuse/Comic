@@ -3,8 +3,6 @@ name: Build Windows Portable
 on:
   push:
     branches: [main]
-    tags:
-      - "v*"
   workflow_dispatch:
 
 jobs:
@@ -15,15 +13,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Get version from tag or generate build number
+      - name: Get version (auto increment)
         id: version
         shell: pwsh
         run: |
-          if ("${{ github.ref }}" -match "refs/tags/v(.+)") {
-            $version = $matches[1]
-          } else {
-            $version = "0.1.${{ github.run_number }}"
-          }
+          $version = "0.1.${{ github.run_number }}"
           echo "VERSION=$version" >> $env:GITHUB_OUTPUT
           echo "Version: $version"
 
@@ -49,10 +43,18 @@ jobs:
           workspaces: "./src-tauri -> target"
           cache-on-failure: true
 
-      - name: Enable incremental compilation
+      - name: Configure build environment
         shell: pwsh
         run: |
+          # 增量编译
           echo "CARGO_INCREMENTAL=1" >> $env:GITHUB_ENV
+          # 使用所有可用 CPU 核心并行编译
+          echo "CARGO_BUILD_JOBS=" >> $env:GITHUB_ENV
+          # Rust 编译器并行代码生成
+          echo "RUSTFLAGS=-C codegen-units=16" >> $env:GITHUB_ENV
+          # 显示 CPU 信息
+          $cpuCount = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
+          echo "Available CPU cores: $cpuCount"
 
       - name: Install frontend dependencies
         run: npm ci
@@ -90,7 +92,6 @@ jobs:
   release:
     needs: build-windows
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
       - name: Download artifact
@@ -101,8 +102,11 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: v0.1.${{ github.run_number }}
+          name: Comic Reader v0.1.${{ github.run_number }}
           files: "Comic-Reader-*.exe"
           draft: false
           prerelease: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

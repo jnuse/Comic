@@ -43,6 +43,30 @@ pub struct Settings {
     pub custom_zoom: f64,
     #[serde(rename = "preloadCount")]
     pub preload_count: u32,
+    #[serde(rename = "readerMode", default = "default_reader_mode")]
+    pub reader_mode: String, // "embedded" | "fullscreen"
+    #[serde(rename = "aspectRatio", default = "default_aspect_ratio")]
+    pub aspect_ratio: String, // "auto" | "3:4" | "9:16" | "1:1" | "4:3" | "16:9" | "custom"
+    #[serde(rename = "customAspectWidth", default = "default_aspect_width")]
+    pub custom_aspect_width: u32,
+    #[serde(rename = "customAspectHeight", default = "default_aspect_height")]
+    pub custom_aspect_height: u32,
+}
+
+fn default_reader_mode() -> String {
+    "embedded".to_string()
+}
+
+fn default_aspect_ratio() -> String {
+    "auto".to_string()
+}
+
+fn default_aspect_width() -> u32 {
+    3
+}
+
+fn default_aspect_height() -> u32 {
+    4
 }
 
 impl Default for Settings {
@@ -52,6 +76,10 @@ impl Default for Settings {
             zoom_mode: "fit-width".to_string(),
             custom_zoom: 100.0,
             preload_count: 3,
+            reader_mode: "embedded".to_string(),
+            aspect_ratio: "auto".to_string(),
+            custom_aspect_width: 3,
+            custom_aspect_height: 4,
         }
     }
 }

@@ -16,7 +16,6 @@ const settingsStore = useSettingsStore();
 const bookmarkStore = useBookmarkStore();
 
 // 状态
-const currentView = ref<'home' | 'reader'>('home');
 const showBookmarks = ref(false);
 const showSettings = ref(false);
 
@@ -25,6 +24,8 @@ const settings = computed(() => settingsStore.settings);
 const currentComic = computed(() => comicStore.currentComic);
 const fileTree = computed(() => comicStore.fileTree);
 const bookmarks = computed(() => bookmarkStore.bookmarks);
+const isFullscreen = computed(() => settings.value.readerMode === 'fullscreen');
+const hasComic = computed(() => currentComic.value !== null);
 
 // 方法
 async function selectFolder() {
@@ -50,14 +51,17 @@ async function handleNodeSelect(node: FileNode) {
 
   try {
     await comicStore.openComic(node.path, node.name, node.isZip);
-    currentView.value = 'reader';
   } catch (e) {
     console.error('打开漫画失败:', e);
   }
 }
 
 function handleCloseReader() {
-  currentView.value = 'home';
+  comicStore.clearComic();
+}
+
+function toggleFullscreen() {
+  settingsStore.setReaderMode(isFullscreen.value ? 'embedded' : 'fullscreen');
 }
 
 function handleZoomIn() {
@@ -87,7 +91,6 @@ async function handleBookmarkSelect(bookmark: Bookmark) {
     await comicStore.openComic(bookmark.comicPath, bookmark.comicName, isZip);
   }
 
-  currentView.value = 'reader';
   showBookmarks.value = false;
 }
 
@@ -113,8 +116,28 @@ onMounted(async () => {
 
 <template>
   <div class="app" :class="{ dark: settingsStore.isDark }">
-    <!-- 主页视图 -->
-    <div v-if="currentView === 'home'" class="home-view">
+    <!-- 全屏阅读模式 -->
+    <div v-if="isFullscreen && hasComic && currentComic" class="fullscreen-reader">
+      <ComicViewer 
+        :images="currentComic.images" 
+        :comic-path="currentComic.path" 
+        :comic-name="currentComic.name"
+        :zoom-mode="settings.zoomMode" 
+        :custom-zoom="settings.customZoom" 
+        :preload-count="settings.preloadCount"
+        :aspect-ratio="settings.aspectRatio"
+        :custom-aspect-width="settings.customAspectWidth"
+        :custom-aspect-height="settings.customAspectHeight"
+        :is-fullscreen="true"
+        @close="handleCloseReader" 
+        @zoom-in="handleZoomIn" 
+        @zoom-out="handleZoomOut"
+        @toggle-fullscreen="toggleFullscreen" 
+      />
+    </div>
+
+    <!-- 主界面（嵌入式阅读模式） -->
+    <div v-else class="home-view">
       <!-- 侧边栏 -->
       <aside class="sidebar">
         <div class="sidebar-header">
@@ -141,7 +164,28 @@ onMounted(async () => {
 
       <!-- 主内容区 -->
       <main class="main-content">
-        <div v-if="!fileTree" class="empty-state">
+        <!-- 有漫画时显示阅读器 -->
+        <div v-if="hasComic && currentComic" class="embedded-reader">
+          <ComicViewer 
+            :images="currentComic.images" 
+            :comic-path="currentComic.path" 
+            :comic-name="currentComic.name"
+            :zoom-mode="settings.zoomMode" 
+            :custom-zoom="settings.customZoom" 
+            :preload-count="settings.preloadCount"
+            :aspect-ratio="settings.aspectRatio"
+            :custom-aspect-width="settings.customAspectWidth"
+            :custom-aspect-height="settings.customAspectHeight"
+            :is-fullscreen="false"
+            @close="handleCloseReader" 
+            @zoom-in="handleZoomIn" 
+            @zoom-out="handleZoomOut"
+            @toggle-fullscreen="toggleFullscreen" 
+          />
+        </div>
+
+        <!-- 无漫画时显示提示 -->
+        <div v-else-if="!fileTree" class="empty-state">
           <div class="empty-icon">📚</div>
           <h2>欢迎使用 Comic Reader</h2>
           <p>点击左侧「选择文件夹」按钮开始浏览漫画</p>
@@ -161,13 +205,6 @@ onMounted(async () => {
 
       <!-- 设置面板 -->
       <SettingsPanel v-if="showSettings" @close="showSettings = false" />
-    </div>
-
-    <!-- 阅读视图 -->
-    <div v-else-if="currentView === 'reader' && currentComic" class="reader-view">
-      <ComicViewer :images="currentComic.images" :comic-path="currentComic.path" :comic-name="currentComic.name"
-        :zoom-mode="settings.zoomMode" :custom-zoom="settings.customZoom" :preload-count="settings.preloadCount"
-        @close="handleCloseReader" @zoom-in="handleZoomIn" @zoom-out="handleZoomOut" />
     </div>
   </div>
 </template>
@@ -194,6 +231,7 @@ onMounted(async () => {
   --placeholder-bg: #f0f0f0;
   --progress-bg: rgba(0, 0, 0, 0.1);
   --slider-bg: #e0e0e0;
+  --input-bg: #ffffff;
 }
 
 /* 深色主题 */
@@ -217,6 +255,7 @@ onMounted(async () => {
   --placeholder-bg: #2a2a2a;
   --progress-bg: rgba(255, 255, 255, 0.1);
   --slider-bg: #444444;
+  --input-bg: #2a2a2a;
 }
 
 * {
@@ -329,13 +368,32 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
+  overflow: hidden;
+}
+
+/* 嵌入式阅读器 */
+.embedded-reader {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 全屏阅读器 */
+.fullscreen-reader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  background-color: var(--viewer-bg);
 }
 
 .empty-state,
 .ready-state {
   text-align: center;
   max-width: 400px;
+  padding: 40px;
 }
 
 .empty-icon,
@@ -359,10 +417,5 @@ body {
 .hint {
   font-size: 14px;
   opacity: 0.7;
-}
-
-/* 阅读视图 */
-.reader-view {
-  height: 100%;
 }
 </style>

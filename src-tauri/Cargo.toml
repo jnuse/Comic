@@ -32,10 +32,16 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 tokio = { version = "1", default-features = false, features = ["fs", "io-util"] }
 
 [profile.release]
-# 优化产物大小
+# 平衡编译速度和产物大小
 opt-level = "z"          # 优化大小
-lto = true               # 链接时优化
-codegen-units = 1        # 单代码单元，更好优化
+lto = "thin"             # 薄 LTO，比 full LTO 快很多
+codegen-units = 16       # 并行代码生成，加快编译
 panic = "abort"          # 不使用 unwind，减少体积
 strip = true             # 去除符号表
+
+# 最小体积 profile（可选，用 cargo build --profile release-min）
+[profile.release-min]
+inherits = "release"
+lto = true               # 完整 LTO
+codegen-units = 1        # 单代码单元，最佳优化
 
