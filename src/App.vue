@@ -1,160 +1,368 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { ref, onMounted, computed } from 'vue';
+import { open } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
+import FileTree from './components/FileTree.vue';
+import ComicViewer from './components/ComicViewer.vue';
+import ThemeToggle from './components/ThemeToggle.vue';
+import BookmarksPanel from './components/BookmarksPanel.vue';
+import SettingsPanel from './components/SettingsPanel.vue';
+import { useComicStore, useSettingsStore, useBookmarkStore } from './stores';
+import type { FileNode, Bookmark } from './types';
 
-const greetMsg = ref("");
-const name = ref("");
+// Stores
+const comicStore = useComicStore();
+const settingsStore = useSettingsStore();
+const bookmarkStore = useBookmarkStore();
 
-async function greet() {
-  // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-  greetMsg.value = await invoke("greet", { name: name.value });
+// 状态
+const currentView = ref<'home' | 'reader'>('home');
+const showBookmarks = ref(false);
+const showSettings = ref(false);
+
+// 计算属性
+const settings = computed(() => settingsStore.settings);
+const currentComic = computed(() => comicStore.currentComic);
+const fileTree = computed(() => comicStore.fileTree);
+const bookmarks = computed(() => bookmarkStore.bookmarks);
+
+// 方法
+async function selectFolder() {
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: '选择漫画文件夹',
+    });
+
+    if (selected && typeof selected === 'string') {
+      await comicStore.scanDirectory(selected);
+      // 保存路径
+      await invoke('cmd_save_last_path', { path: selected });
+    }
+  } catch (e) {
+    console.error('选择文件夹失败:', e);
+  }
 }
+
+async function handleNodeSelect(node: FileNode) {
+  if (!node.isComic) return;
+
+  try {
+    await comicStore.openComic(node.path, node.name, node.isZip);
+    currentView.value = 'reader';
+  } catch (e) {
+    console.error('打开漫画失败:', e);
+  }
+}
+
+function handleCloseReader() {
+  currentView.value = 'home';
+}
+
+function handleZoomIn() {
+  const current = settings.value.customZoom;
+  settingsStore.setCustomZoom(Math.min(500, current + 10));
+  if (settings.value.zoomMode !== 'custom') {
+    settingsStore.setZoomMode('custom');
+  }
+}
+
+function handleZoomOut() {
+  const current = settings.value.customZoom;
+  settingsStore.setCustomZoom(Math.max(10, current - 10));
+  if (settings.value.zoomMode !== 'custom') {
+    settingsStore.setZoomMode('custom');
+  }
+}
+
+async function handleBookmarkSelect(bookmark: Bookmark) {
+  // 如果是不同的漫画，需要先打开
+  if (!currentComic.value || currentComic.value.path !== bookmark.comicPath) {
+    // 需要找到对应的节点来确定是否是 ZIP
+    // 简单处理：通过文件扩展名判断
+    const isZip = bookmark.comicPath.toLowerCase().endsWith('.zip') ||
+      bookmark.comicPath.toLowerCase().endsWith('.cbz');
+
+    await comicStore.openComic(bookmark.comicPath, bookmark.comicName, isZip);
+  }
+
+  currentView.value = 'reader';
+  showBookmarks.value = false;
+}
+
+// 初始化
+onMounted(async () => {
+  // 加载设置
+  await settingsStore.loadSettings();
+
+  // 加载书签
+  await bookmarkStore.loadBookmarks();
+
+  // 尝试加载上次打开的路径
+  try {
+    const lastPath = await invoke<string | null>('cmd_get_last_path');
+    if (lastPath) {
+      await comicStore.scanDirectory(lastPath);
+    }
+  } catch (e) {
+    console.error('加载上次路径失败:', e);
+  }
+});
 </script>
 
 <template>
-  <main class="container">
-    <h1>Welcome to Tauri + Vue</h1>
+  <div class="app" :class="{ dark: settingsStore.isDark }">
+    <!-- 主页视图 -->
+    <div v-if="currentView === 'home'" class="home-view">
+      <!-- 侧边栏 -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h1 class="app-title">📖 Comic Reader</h1>
+          <div class="header-actions">
+            <ThemeToggle />
+            <button class="icon-btn" @click="showBookmarks = !showBookmarks" title="书签">
+              📚
+            </button>
+            <button class="icon-btn" @click="showSettings = !showSettings" title="设置">
+              ⚙️
+            </button>
+          </div>
+        </div>
 
-    <div class="row">
-      <a href="https://vite.dev" target="_blank">
-        <img src="/vite.svg" class="logo vite" alt="Vite logo" />
-      </a>
-      <a href="https://tauri.app" target="_blank">
-        <img src="/tauri.svg" class="logo tauri" alt="Tauri logo" />
-      </a>
-      <a href="https://vuejs.org/" target="_blank">
-        <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-      </a>
+        <button class="select-folder-btn" @click="selectFolder">
+          📁 选择文件夹
+        </button>
+
+        <div class="file-tree-container">
+          <FileTree :tree="fileTree" @select="handleNodeSelect" />
+        </div>
+      </aside>
+
+      <!-- 主内容区 -->
+      <main class="main-content">
+        <div v-if="!fileTree" class="empty-state">
+          <div class="empty-icon">📚</div>
+          <h2>欢迎使用 Comic Reader</h2>
+          <p>点击左侧「选择文件夹」按钮开始浏览漫画</p>
+          <p class="hint">支持 ZIP/CBZ 压缩包和图片文件夹</p>
+        </div>
+        <div v-else class="ready-state">
+          <div class="ready-icon">👆</div>
+          <h2>从左侧选择漫画开始阅读</h2>
+          <p>📦 压缩包图标表示 ZIP 漫画</p>
+          <p>📖 书本图标表示图片文件夹</p>
+        </div>
+      </main>
+
+      <!-- 书签面板 -->
+      <BookmarksPanel v-if="showBookmarks" :bookmarks="bookmarks" @close="showBookmarks = false"
+        @select="handleBookmarkSelect" />
+
+      <!-- 设置面板 -->
+      <SettingsPanel v-if="showSettings" @close="showSettings = false" />
     </div>
-    <p>Click on the Tauri, Vite, and Vue logos to learn more.</p>
 
-    <form class="row" @submit.prevent="greet">
-      <input id="greet-input" v-model="name" placeholder="Enter a name..." />
-      <button type="submit">Greet</button>
-    </form>
-    <p>{{ greetMsg }}</p>
-  </main>
+    <!-- 阅读视图 -->
+    <div v-else-if="currentView === 'reader' && currentComic" class="reader-view">
+      <ComicViewer :images="currentComic.images" :comic-path="currentComic.path" :comic-name="currentComic.name"
+        :zoom-mode="settings.zoomMode" :custom-zoom="settings.customZoom" :preload-count="settings.preloadCount"
+        @close="handleCloseReader" @zoom-in="handleZoomIn" @zoom-out="handleZoomOut" />
+    </div>
+  </div>
 </template>
 
-<style scoped>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #249b73);
-}
-
-</style>
 <style>
+/* CSS 变量 - 浅色主题 */
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
+  --bg-color: #ffffff;
+  --text-color: #1a1a1a;
+  --text-muted: #666666;
+  --border-color: #e0e0e0;
+  --hover-bg: rgba(0, 0, 0, 0.05);
+  --primary-color: #3b82f6;
+  --primary-bg: rgba(59, 130, 246, 0.1);
+  --accent-color: #8b5cf6;
+  --btn-bg: #f5f5f5;
+  --btn-hover-bg: #ebebeb;
+  --panel-bg: #ffffff;
+  --sidebar-bg: #f8f9fa;
+  --item-bg: #f5f5f5;
+  --item-hover-bg: #ebebeb;
+  --viewer-bg: #1a1a1a;
+  --toolbar-bg: rgba(255, 255, 255, 0.95);
+  --placeholder-bg: #f0f0f0;
+  --progress-bg: rgba(0, 0, 0, 0.1);
+  --slider-bg: #e0e0e0;
 }
 
-.container {
+/* 深色主题 */
+.dark {
+  --bg-color: #1a1a1a;
+  --text-color: #f0f0f0;
+  --text-muted: #888888;
+  --border-color: #333333;
+  --hover-bg: rgba(255, 255, 255, 0.08);
+  --primary-color: #60a5fa;
+  --primary-bg: rgba(96, 165, 250, 0.15);
+  --accent-color: #a78bfa;
+  --btn-bg: #2a2a2a;
+  --btn-hover-bg: #3a3a3a;
+  --panel-bg: #242424;
+  --sidebar-bg: #1e1e1e;
+  --item-bg: #2a2a2a;
+  --item-hover-bg: #3a3a3a;
+  --viewer-bg: #0a0a0a;
+  --toolbar-bg: rgba(40, 40, 40, 0.95);
+  --placeholder-bg: #2a2a2a;
+  --progress-bg: rgba(255, 255, 255, 0.1);
+  --slider-bg: #444444;
+}
+
+* {
   margin: 0;
-  padding-top: 10vh;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.3s, color 0.3s;
+}
+</style>
+
+<style scoped>
+.app {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
+/* 主页视图 */
+.home-view {
   display: flex;
-  justify-content: center;
+  height: 100%;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+/* 侧边栏 */
+.sidebar {
+  width: 300px;
+  min-width: 250px;
+  max-width: 400px;
+  background-color: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  resize: horizontal;
+  overflow: hidden;
 }
 
-a:hover {
-  color: #535bf2;
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
 }
 
-h1 {
-  text-align: center;
+.app-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 12px;
 }
 
-input,
-button {
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background-color: var(--btn-bg);
   border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
   cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s;
 }
 
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
+.icon-btn:hover {
+  background-color: var(--btn-hover-bg);
 }
 
-input,
-button {
-  outline: none;
+.select-folder-btn {
+  margin: 16px;
+  padding: 12px 16px;
+  border: none;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
 }
 
-#greet-input {
-  margin-right: 5px;
+.select-folder-btn:hover {
+  opacity: 0.9;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
+.file-tree-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
 }
 
+/* 主内容区 */
+.main-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.empty-state,
+.ready-state {
+  text-align: center;
+  max-width: 400px;
+}
+
+.empty-icon,
+.ready-icon {
+  font-size: 64px;
+  margin-bottom: 24px;
+}
+
+.empty-state h2,
+.ready-state h2 {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.empty-state p,
+.ready-state p {
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.hint {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+/* 阅读视图 */
+.reader-view {
+  height: 100%;
+}
 </style>
