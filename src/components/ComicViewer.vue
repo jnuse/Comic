@@ -34,10 +34,20 @@
 
         <!-- 悬浮工具栏 -->
         <div class="floating-toolbar">
+            <!-- 翻页控制 -->
+            <button class="toolbar-btn" @click="goToPrevPage" :disabled="currentImageIndex <= 0" title="上一页 (↑)">
+                ⬆️
+            </button>
+
             <!-- 进度显示 -->
             <div class="progress-info">
                 {{ currentImageIndex + 1 }} / {{ images.length }}
             </div>
+
+            <!-- 下一页 -->
+            <button class="toolbar-btn" @click="goToNextPage" :disabled="currentImageIndex >= images.length - 1" title="下一页 (↓)">
+                ⬇️
+            </button>
 
             <!-- 书签按钮 -->
             <button class="toolbar-btn" :class="{ active: isCurrentBookmarked }" @click="toggleCurrentBookmark"
@@ -399,6 +409,49 @@ async function restoreProgress() {
     }
 }
 
+// 上一页
+function goToPrevPage() {
+    if (currentImageIndex.value > 0) {
+        scrollToImage(currentImageIndex.value - 1);
+    }
+}
+
+// 下一页
+function goToNextPage() {
+    if (currentImageIndex.value < props.images.length - 1) {
+        scrollToImage(currentImageIndex.value + 1);
+    }
+}
+
+// 键盘事件处理
+function handleKeyDown(event: KeyboardEvent) {
+    // 忽略输入框中的按键
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+    }
+    
+    switch (event.key) {
+        case 'ArrowUp':
+        case 'PageUp':
+            event.preventDefault();
+            goToPrevPage();
+            break;
+        case 'ArrowDown':
+        case 'PageDown':
+            event.preventDefault();
+            goToNextPage();
+            break;
+        case 'Home':
+            event.preventDefault();
+            scrollToImage(0);
+            break;
+        case 'End':
+            event.preventDefault();
+            scrollToImage(props.images.length - 1);
+            break;
+    }
+}
+
 // 初始化
 onMounted(async () => {
     isLoading.value = true;
@@ -415,10 +468,16 @@ onMounted(async () => {
 
     // 继续加载可见图片
     throttledLoadImages();
+    
+    // 添加键盘监听
+    window.addEventListener('keydown', handleKeyDown);
 });
 
 // 清理
 onUnmounted(() => {
+    // 移除键盘监听
+    window.removeEventListener('keydown', handleKeyDown);
+    
     // 保存最终进度（包括缩放设置）
     progressStore.saveProgress(
         props.comicPath,
@@ -577,6 +636,15 @@ defineExpose({
 
 .toolbar-btn:hover {
     background-color: var(--hover-bg);
+}
+
+.toolbar-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.toolbar-btn:disabled:hover {
+    background-color: transparent;
 }
 
 .toolbar-btn.active {
