@@ -24,10 +24,18 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-zip = "2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 base64 = "0.22"
 walkdir = "2"
 natord = "1.0"
-image = "0.25"
-tokio = { version = "1", features = ["full"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
+tokio = { version = "1", default-features = false, features = ["fs", "io-util"] }
+
+[profile.release]
+# 优化产物大小
+opt-level = "z"          # 优化大小
+lto = true               # 链接时优化
+codegen-units = 1        # 单代码单元，更好优化
+panic = "abort"          # 不使用 unwind，减少体积
+strip = true             # 去除符号表
 
