@@ -39,9 +39,23 @@
                 ⬆️
             </button>
 
-            <!-- 进度显示 -->
-            <div class="progress-info">
+            <!-- 进度显示/编辑 -->
+            <div class="progress-info" v-if="!isEditingPage" @click="startEditPage" title="点击跳转到指定页">
                 {{ currentImageIndex + 1 }} / {{ images.length }}
+            </div>
+            <div class="page-editor" v-else>
+                <input 
+                    ref="pageInputRef"
+                    type="number" 
+                    v-model.number="editPageNumber" 
+                    :min="1" 
+                    :max="images.length"
+                    @keydown.enter="confirmPageJump"
+                    @keydown.escape="cancelEditPage"
+                    @blur="confirmPageJump"
+                    class="page-input"
+                />
+                <span class="page-total">/ {{ images.length }}</span>
             </div>
 
             <!-- 下一页 -->
@@ -119,6 +133,7 @@ const progressStore = useProgressStore();
 // Refs
 const viewerRef = ref<HTMLElement | null>(null);
 const imageRefs = ref<Map<number, HTMLElement>>(new Map());
+const pageInputRef = ref<HTMLInputElement | null>(null);
 
 // 状态
 const isLoading = ref(false);
@@ -126,6 +141,8 @@ const loadedImages = ref<Record<number, string>>({});
 const currentImageIndex = ref(0);
 const scrollPosition = ref(0);
 const isZooming = ref(false); // 标记是否正在缩放
+const isEditingPage = ref(false); // 是否正在编辑页码
+const editPageNumber = ref(1); // 编辑中的页码
 
 // 监听漫画切换，重置阅读器状态
 watch(
@@ -423,6 +440,32 @@ function goToNextPage() {
     }
 }
 
+// 开始编辑页码
+async function startEditPage() {
+    editPageNumber.value = currentImageIndex.value + 1;
+    isEditingPage.value = true;
+    await nextTick();
+    pageInputRef.value?.focus();
+    pageInputRef.value?.select();
+}
+
+// 确认跳转页码
+function confirmPageJump() {
+    if (!isEditingPage.value) return;
+    
+    const targetPage = Math.max(1, Math.min(props.images.length, editPageNumber.value || 1));
+    isEditingPage.value = false;
+    
+    if (targetPage !== currentImageIndex.value + 1) {
+        scrollToImage(targetPage - 1);
+    }
+}
+
+// 取消编辑页码
+function cancelEditPage() {
+    isEditingPage.value = false;
+}
+
 // 键盘事件处理
 function handleKeyDown(event: KeyboardEvent) {
     // 忽略输入框中的按键
@@ -618,6 +661,48 @@ defineExpose({
     font-weight: 500;
     min-width: 60px;
     text-align: center;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.15s;
+}
+
+.progress-info:hover {
+    background-color: var(--hover-bg);
+}
+
+.page-editor {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.page-input {
+    width: 50px;
+    padding: 4px 6px;
+    border: 1px solid var(--primary-color);
+    border-radius: 4px;
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    outline: none;
+}
+
+.page-input::-webkit-inner-spin-button,
+.page-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.page-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+.page-total {
+    font-size: 14px;
+    font-weight: 500;
 }
 
 .toolbar-btn {
