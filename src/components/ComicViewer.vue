@@ -116,6 +116,38 @@ const currentImageIndex = ref(0);
 const scrollPosition = ref(0);
 const isZooming = ref(false); // 标记是否正在缩放
 
+// 监听漫画切换，重置阅读器状态
+watch(
+    () => props.comicPath,
+    async (newPath, oldPath) => {
+        if (newPath !== oldPath && oldPath) {
+            // 保存旧漫画的进度
+            progressStore.saveProgress(oldPath, currentImageIndex.value, scrollPosition.value);
+            
+            // 重置状态
+            loadedImages.value = {};
+            currentImageIndex.value = 0;
+            scrollPosition.value = 0;
+            imageRefs.value.clear();
+            
+            // 滚动到顶部
+            if (viewerRef.value) {
+                viewerRef.value.scrollTop = 0;
+            }
+            
+            // 加载新漫画
+            isLoading.value = true;
+            for (let i = 0; i < Math.min(3, props.images.length); i++) {
+                await loadImage(i);
+            }
+            isLoading.value = false;
+            
+            // 恢复新漫画的进度
+            await restoreProgress();
+        }
+    }
+);
+
 // 监听缩放变化，保持当前图片位置
 watch(
     () => [props.customZoom, props.zoomMode],
