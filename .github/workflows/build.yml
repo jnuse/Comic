@@ -48,8 +48,6 @@ jobs:
         run: |
           # 增量编译
           echo "CARGO_INCREMENTAL=1" >> $env:GITHUB_ENV
-          # 使用所有可用 CPU 核心并行编译
-          echo "CARGO_BUILD_JOBS=" >> $env:GITHUB_ENV
           # Rust 编译器并行代码生成
           echo "RUSTFLAGS=-C codegen-units=16" >> $env:GITHUB_ENV
           # 显示 CPU 信息

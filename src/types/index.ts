@@ -74,7 +74,14 @@ export type ZoomMode = "fit-width" | "fit-height" | "original" | "custom";
 export type ReaderMode = "embedded" | "fullscreen";
 
 // 图片比例预设
-export type AspectRatio = "auto" | "3:4" | "9:16" | "1:1" | "4:3" | "16:9" | "custom";
+export type AspectRatio =
+  | "auto"
+  | "3:4"
+  | "9:16"
+  | "1:1"
+  | "4:3"
+  | "16:9"
+  | "custom";
 
 // 设置
 export interface Settings {

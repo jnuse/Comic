@@ -1,7 +1,13 @@
 import { defineStore } from "pinia";
 import { ref, watch, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import type { Settings, Theme, ZoomMode, ReaderMode, AspectRatio } from "../types";
+import type {
+  Settings,
+  Theme,
+  ZoomMode,
+  ReaderMode,
+  AspectRatio,
+} from "../types";
 import { defaultSettings } from "../types";
 import { usePreferredDark } from "@vueuse/core";
 
