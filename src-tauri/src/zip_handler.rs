@@ -1,10 +1,20 @@
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::Read;
+use std::io::{BufReader, Read};
 use std::path::Path;
+use std::sync::Mutex;
 use zip::ZipArchive;
 
 use crate::file_system::is_image_file;
+
+/// ZIP 句柄缓存：只缓存当前正在读的那一个 ZIP
+pub struct ZipCache(pub Mutex<Option<(String, ZipArchive<BufReader<File>>)>>);
+
+impl Default for ZipCache {
+    fn default() -> Self {
+        Self(Mutex::new(None))
+    }
+}
 
 /// ZIP 内图片信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,7 +34,7 @@ pub fn get_zip_image_list(zip_path: &str) -> Result<Vec<ZipImageInfo>, String> {
     }
 
     let file = File::open(path).map_err(|e| format!("无法打开文件: {}", e))?;
-    let mut archive = ZipArchive::new(file).map_err(|e| format!("无法读取 ZIP: {}", e))?;
+    let mut archive = ZipArchive::new(BufReader::new(file)).map_err(|e| format!("无法读取 ZIP: {}", e))?;
 
     let mut images: Vec<ZipImageInfo> = Vec::new();
 
@@ -73,16 +83,30 @@ pub fn get_zip_image_list(zip_path: &str) -> Result<Vec<ZipImageInfo>, String> {
     Ok(images)
 }
 
-/// 从 ZIP 文件中读取指定图片的数据（Base64）
-pub fn read_zip_image(zip_path: &str, image_path: &str) -> Result<String, String> {
+/// 从 ZIP 文件中读取指定图片的数据（Base64），复用缓存的 ZIP 句柄
+pub fn read_zip_image(zip_path: &str, image_path: &str, cache: &ZipCache) -> Result<String, String> {
     let path = Path::new(zip_path);
-    
+
     if !path.exists() {
         return Err(format!("ZIP 文件不存在: {}", zip_path));
     }
 
-    let file = File::open(path).map_err(|e| format!("无法打开文件: {}", e))?;
-    let mut archive = ZipArchive::new(file).map_err(|e| format!("无法读取 ZIP: {}", e))?;
+    let mut guard = cache.0.lock().map_err(|e| format!("锁获取失败: {}", e))?;
+
+    // 如果缓存的不是当前 ZIP，替换
+    let need_open = match guard.as_ref() {
+        Some((cached_path, _)) => cached_path != zip_path,
+        None => true,
+    };
+
+    if need_open {
+        let file = File::open(path).map_err(|e| format!("无法打开文件: {}", e))?;
+        let archive = ZipArchive::new(BufReader::new(file))
+            .map_err(|e| format!("无法读取 ZIP: {}", e))?;
+        *guard = Some((zip_path.to_string(), archive));
+    }
+
+    let (_, archive) = guard.as_mut().unwrap();
 
     let mut zip_file = archive
         .by_name(image_path)
@@ -93,12 +117,9 @@ pub fn read_zip_image(zip_path: &str, image_path: &str) -> Result<String, String
         .read_to_end(&mut buffer)
         .map_err(|e| format!("无法读取图片数据: {}", e))?;
 
-    // 获取 MIME 类型
     let mime_type = get_mime_type(image_path);
-    
-    // 转换为 Base64 Data URL
     let base64_data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &buffer);
-    
+
     Ok(format!("data:{};base64,{}", mime_type, base64_data))
 }
 

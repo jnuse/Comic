@@ -350,6 +350,18 @@ async function loadVisibleImages() {
     for (let i = preloadStart; i <= preloadEnd; i++) {
         await loadImage(i);
     }
+
+    // 释放远离视口的图片数据，防止内存无限增长
+    const keepStart = Math.max(0, visibleStartIndex - props.preloadCount * 2);
+    const keepEnd = Math.min(props.images.length - 1, visibleEndIndex + props.preloadCount * 2);
+
+    for (const key of Object.keys(loadedImages.value)) {
+        const idx = Number(key);
+        if (idx < keepStart || idx > keepEnd) {
+            delete loadedImages.value[idx];
+            comicStore.evictImage(idx);
+        }
+    }
 }
 
 // 节流的加载函数

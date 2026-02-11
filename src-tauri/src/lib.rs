@@ -6,12 +6,12 @@ mod zip_handler;
 use file_system::{FileNode, scan_directory, get_images_in_directory};
 use image_handler::{ImageChunk, read_image_as_base64, get_image_dimensions, split_image_to_chunks};
 use storage::{
-    AppData, Bookmark, ReadingProgress, Settings,
+    AppData, AppDataCache, Bookmark, ReadingProgress, Settings,
     load_app_data, save_progress, get_progress,
     add_bookmark, remove_bookmark, get_bookmarks, get_comic_bookmarks,
     save_settings, get_settings, save_last_opened_path, get_last_opened_path,
 };
-use zip_handler::{ZipImageInfo, get_zip_image_list, read_zip_image};
+use zip_handler::{ZipCache, ZipImageInfo, get_zip_image_list, read_zip_image};
 use tauri::AppHandle;
 
 // ============== 文件系统命令 ==============
@@ -38,8 +38,8 @@ fn cmd_get_zip_images(path: String) -> Result<Vec<ZipImageInfo>, String> {
 
 /// 读取 ZIP 中的图片
 #[tauri::command]
-fn cmd_read_zip_image(zip_path: String, image_path: String) -> Result<String, String> {
-    read_zip_image(&zip_path, &image_path)
+fn cmd_read_zip_image(zip_path: String, image_path: String, cache: tauri::State<ZipCache>) -> Result<String, String> {
+    read_zip_image(&zip_path, &image_path, &cache)
 }
 
 // ============== 图片命令 ==============
@@ -66,73 +66,75 @@ fn cmd_split_image(path: String, chunk_height: u32) -> Result<Vec<ImageChunk>, S
 
 /// 保存阅读进度
 #[tauri::command]
-fn cmd_save_progress(app: AppHandle, progress: ReadingProgress) -> Result<(), String> {
-    save_progress(&app, progress)
+fn cmd_save_progress(app: AppHandle, cache: tauri::State<AppDataCache>, progress: ReadingProgress) -> Result<(), String> {
+    save_progress(&app, &cache, progress)
 }
 
 /// 获取阅读进度
 #[tauri::command]
-fn cmd_get_progress(app: AppHandle, comic_path: String) -> Result<Option<ReadingProgress>, String> {
-    get_progress(&app, &comic_path)
+fn cmd_get_progress(app: AppHandle, cache: tauri::State<AppDataCache>, comic_path: String) -> Result<Option<ReadingProgress>, String> {
+    get_progress(&app, &cache, &comic_path)
 }
 
 /// 添加书签
 #[tauri::command]
-fn cmd_add_bookmark(app: AppHandle, bookmark: Bookmark) -> Result<(), String> {
-    add_bookmark(&app, bookmark)
+fn cmd_add_bookmark(app: AppHandle, cache: tauri::State<AppDataCache>, bookmark: Bookmark) -> Result<(), String> {
+    add_bookmark(&app, &cache, bookmark)
 }
 
 /// 删除书签
 #[tauri::command]
-fn cmd_remove_bookmark(app: AppHandle, bookmark_id: String) -> Result<(), String> {
-    remove_bookmark(&app, &bookmark_id)
+fn cmd_remove_bookmark(app: AppHandle, cache: tauri::State<AppDataCache>, bookmark_id: String) -> Result<(), String> {
+    remove_bookmark(&app, &cache, &bookmark_id)
 }
 
 /// 获取所有书签
 #[tauri::command]
-fn cmd_get_bookmarks(app: AppHandle) -> Result<Vec<Bookmark>, String> {
-    get_bookmarks(&app)
+fn cmd_get_bookmarks(app: AppHandle, cache: tauri::State<AppDataCache>) -> Result<Vec<Bookmark>, String> {
+    get_bookmarks(&app, &cache)
 }
 
 /// 获取漫画的书签
 #[tauri::command]
-fn cmd_get_comic_bookmarks(app: AppHandle, comic_path: String) -> Result<Vec<Bookmark>, String> {
-    get_comic_bookmarks(&app, &comic_path)
+fn cmd_get_comic_bookmarks(app: AppHandle, cache: tauri::State<AppDataCache>, comic_path: String) -> Result<Vec<Bookmark>, String> {
+    get_comic_bookmarks(&app, &cache, &comic_path)
 }
 
 /// 保存设置
 #[tauri::command]
-fn cmd_save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
-    save_settings(&app, settings)
+fn cmd_save_settings(app: AppHandle, cache: tauri::State<AppDataCache>, settings: Settings) -> Result<(), String> {
+    save_settings(&app, &cache, settings)
 }
 
 /// 获取设置
 #[tauri::command]
-fn cmd_get_settings(app: AppHandle) -> Result<Settings, String> {
-    get_settings(&app)
+fn cmd_get_settings(app: AppHandle, cache: tauri::State<AppDataCache>) -> Result<Settings, String> {
+    get_settings(&app, &cache)
 }
 
 /// 保存最后打开的路径
 #[tauri::command]
-fn cmd_save_last_path(app: AppHandle, path: String) -> Result<(), String> {
-    save_last_opened_path(&app, &path)
+fn cmd_save_last_path(app: AppHandle, cache: tauri::State<AppDataCache>, path: String) -> Result<(), String> {
+    save_last_opened_path(&app, &cache, &path)
 }
 
 /// 获取最后打开的路径
 #[tauri::command]
-fn cmd_get_last_path(app: AppHandle) -> Result<Option<String>, String> {
-    get_last_opened_path(&app)
+fn cmd_get_last_path(app: AppHandle, cache: tauri::State<AppDataCache>) -> Result<Option<String>, String> {
+    get_last_opened_path(&app, &cache)
 }
 
 /// 加载所有应用数据
 #[tauri::command]
-fn cmd_load_app_data(app: AppHandle) -> Result<AppData, String> {
-    load_app_data(&app)
+fn cmd_load_app_data(app: AppHandle, cache: tauri::State<AppDataCache>) -> Result<AppData, String> {
+    load_app_data(&app, &cache)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(ZipCache::default())
+        .manage(AppDataCache::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

@@ -181,6 +181,15 @@ export const useComicStore = defineStore("comic", () => {
     await Promise.all(tasks);
   }
 
+  // 释放指定图片的缓存数据
+  function evictImage(index: number) {
+    if (!currentComic.value) return;
+    const image = currentComic.value.images[index];
+    if (image) {
+      image.data = undefined;
+    }
+  }
+
   // 清除当前漫画
   function clearComic() {
     currentComic.value = null;
@@ -216,6 +225,7 @@ export const useComicStore = defineStore("comic", () => {
     openComic,
     loadImage,
     preloadImages,
+    evictImage,
     clearComic,
     clearAll,
   };
