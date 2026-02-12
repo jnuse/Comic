@@ -144,10 +144,6 @@ const isZooming = ref(false); // 标记是否正在缩放
 const isEditingPage = ref(false); // 是否正在编辑页码
 const editPageNumber = ref(1); // 编辑中的页码
 
-// IntersectionObserver 相关
-const visibleSet = ref<Set<number>>(new Set());
-const observer = ref<IntersectionObserver | null>(null);
-
 // 监听漫画切换，重置阅读器状态
 watch(
     () => props.comicPath,
@@ -167,7 +163,6 @@ watch(
             currentImageIndex.value = 0;
             scrollPosition.value = 0;
             imageRefs.value.clear();
-            visibleSet.value.clear();
             
             // 滚动到顶部
             if (viewerRef.value) {
@@ -176,10 +171,9 @@ watch(
             
             // 加载新漫画
             isLoading.value = true;
-            const initialCount = Math.min(3, props.images.length);
-            await Promise.all(
-                Array.from({ length: initialCount }, (_, i) => loadImage(i))
-            );
+            for (let i = 0; i < Math.min(3, props.images.length); i++) {
+                await loadImage(i);
+            }
             isLoading.value = false;
             
             // 恢复新漫画的进度
@@ -281,17 +275,8 @@ const isCurrentBookmarked = computed(() =>
 function setImageRef(index: number, el: HTMLElement | null) {
     if (el) {
         imageRefs.value.set(index, el);
-        // 开始观察这个元素
-        if (observer.value) {
-            observer.value.observe(el);
-        }
     } else {
-        const oldEl = imageRefs.value.get(index);
-        if (oldEl && observer.value) {
-            observer.value.unobserve(oldEl);
-        }
         imageRefs.value.delete(index);
-        visibleSet.value.delete(index);
     }
 }
 
@@ -323,11 +308,33 @@ async function loadImage(index: number) {
 async function loadVisibleImages() {
     if (!viewerRef.value) return;
 
-    // 从 visibleSet 获取可见范围
-    const visibleIndices = Array.from(visibleSet.value).sort((a, b) => a - b);
+    const container = viewerRef.value;
+    const viewportHeight = container.clientHeight;
 
-    let visibleStartIndex = visibleIndices[0] ?? 0;
-    let visibleEndIndex = visibleIndices[visibleIndices.length - 1] ?? 0;
+    // 找出当前可见的图片
+    let visibleStartIndex = -1;
+    let visibleEndIndex = -1;
+
+    for (let i = 0; i < props.images.length; i++) {
+        const el = imageRefs.value.get(i);
+        if (!el) continue;
+
+        const rect = el.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+
+        const relativeTop = rect.top - containerRect.top;
+        const relativeBottom = rect.bottom - containerRect.top;
+
+        if (relativeBottom > 0 && relativeTop < viewportHeight) {
+            if (visibleStartIndex === -1) visibleStartIndex = i;
+            visibleEndIndex = i;
+        }
+    }
+
+    if (visibleStartIndex === -1) {
+        visibleStartIndex = 0;
+        visibleEndIndex = 0;
+    }
 
     // 更新当前图片索引（取中间的）
     const middleIndex = Math.floor((visibleStartIndex + visibleEndIndex) / 2);
@@ -350,12 +357,6 @@ async function loadVisibleImages() {
 
     for (const key of Object.keys(loadedImages.value)) {
         const idx = Number(key);
-        if (idx < keepStart || idx > keepEnd) {
-            delete loadedImages.value[idx];
-            comicStore.evictImage(idx);
-        }
-    }
-}
         if (idx < keepStart || idx > keepEnd) {
             delete loadedImages.value[idx];
             comicStore.evictImage(idx);
@@ -510,11 +511,10 @@ function handleKeyDown(event: KeyboardEvent) {
 onMounted(async () => {
     isLoading.value = true;
 
-    // 并行加载前几张图片
-    const initialCount = Math.min(3, props.images.length);
-    await Promise.all(
-        Array.from({ length: initialCount }, (_, i) => loadImage(i))
-    );
+    // 先加载前几张图片
+    for (let i = 0; i < Math.min(3, props.images.length); i++) {
+        await loadImage(i);
+    }
 
     isLoading.value = false;
 
@@ -523,43 +523,13 @@ onMounted(async () => {
 
     // 继续加载可见图片
     throttledLoadImages();
-
-    // 创建 IntersectionObserver
-    observer.value = new IntersectionObserver(
-        (entries) => {
-            entries.forEach((entry) => {
-                const index = Number(entry.target.getAttribute('data-index'));
-                if (entry.isIntersecting) {
-                    visibleSet.value.add(index);
-                } else {
-                    visibleSet.value.delete(index);
-                }
-            });
-            throttledLoadImages();
-        },
-        {
-            root: viewerRef.value,
-            threshold: 0.01,
-        }
-    );
-
-    // 观察所有已渲染的图片容器
-    imageRefs.value.forEach((el) => {
-        if (observer.value) observer.value.observe(el);
-    });
-
+    
     // 添加键盘监听
     window.addEventListener('keydown', handleKeyDown);
 });
 
 // 清理
 onUnmounted(() => {
-    // 销毁 IntersectionObserver
-    if (observer.value) {
-        observer.value.disconnect();
-        observer.value = null;
-    }
-
     // 移除键盘监听
     window.removeEventListener('keydown', handleKeyDown);
     
