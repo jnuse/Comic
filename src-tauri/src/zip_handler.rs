@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use zip::ZipArchive;
 
 use crate::file_system::is_image_file;
+use crate::image_handler::get_mime_type;
 
 /// ZIP 句柄缓存：只缓存当前正在读的那一个 ZIP
 pub struct ZipCache(pub Mutex<Option<(String, ZipArchive<BufReader<File>>)>>);
@@ -157,18 +158,4 @@ pub fn read_zip_images_batch(
     }
 
     Ok(results)
-}
-
-/// 获取 MIME 类型
-fn get_mime_type(path: &str) -> &'static str {
-    let path = Path::new(path);
-    match path.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()).as_deref() {
-        Some("jpg") | Some("jpeg") => "image/jpeg",
-        Some("png") => "image/png",
-        Some("gif") => "image/gif",
-        Some("webp") => "image/webp",
-        Some("bmp") => "image/bmp",
-        Some("tiff") | Some("tif") => "image/tiff",
-        _ => "application/octet-stream",
-    }
 }

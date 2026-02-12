@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use walkdir::WalkDir;
 
 /// 支持的图片格式
 const IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "tif"];
@@ -40,11 +39,6 @@ pub fn is_zip_file(path: &Path) -> bool {
     false
 }
 
-/// 自然排序比较函数
-fn natural_sort_key(name: &str) -> String {
-    name.to_lowercase()
-}
-
 /// 使用自然排序对文件节点排序
 fn sort_nodes(nodes: &mut [FileNode]) {
     nodes.sort_by(|a, b| {
@@ -69,18 +63,6 @@ pub fn directory_has_images(path: &Path) -> (bool, u32) {
         }
     }
     (count > 0, count)
-}
-
-/// 递归检查目录及其子目录是否包含图片
-pub fn directory_contains_images_recursive(path: &Path) -> bool {
-    for entry in WalkDir::new(path).max_depth(10) {
-        if let Ok(e) = entry {
-            if e.path().is_file() && is_image_file(e.path()) {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 /// 扫描目录并构建文件树
