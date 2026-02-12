@@ -102,7 +102,7 @@ export interface AppData {
   settings: Settings;
   progress: Record<string, ReadingProgress>;
   bookmarks: Bookmark[];
-  lastOpenedPath?: string;
+  lastOpenedPaths?: string[];  // 改为数组，支持多个路径
 }
 
 // 默认设置

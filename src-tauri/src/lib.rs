@@ -130,9 +130,9 @@ fn cmd_save_last_path(app: AppHandle, cache: tauri::State<AppDataCache>, path: S
     save_last_opened_path(&app, &cache, &path)
 }
 
-/// 获取最后打开的路径
+/// 获取最后打开的路径列表
 #[tauri::command]
-fn cmd_get_last_path(app: AppHandle, cache: tauri::State<AppDataCache>) -> Result<Option<String>, String> {
+fn cmd_get_last_path(app: AppHandle, cache: tauri::State<AppDataCache>) -> Result<Option<Vec<String>>, String> {
     get_last_opened_path(&app, &cache)
 }
 

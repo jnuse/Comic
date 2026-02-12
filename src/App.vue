@@ -111,11 +111,18 @@ onMounted(async () => {
   // 加载书签
   await bookmarkStore.loadBookmarks();
 
-  // 尝试加载上次打开的路径
+  // 尝试加载上次打开的路径列表
   try {
-    const lastPath = await invoke<string | null>('cmd_get_last_path');
-    if (lastPath) {
-      await comicStore.scanDirectory(lastPath);
+    const lastPaths = await invoke<string[] | null>('cmd_get_last_path');
+    if (lastPaths && lastPaths.length > 0) {
+      // 加载所有保存的路径
+      for (const path of lastPaths) {
+        try {
+          await comicStore.scanDirectory(path);
+        } catch (e) {
+          console.error(`加载路径 ${path} 失败:`, e);
+        }
+      }
     }
   } catch (e) {
     console.error('加载上次路径失败:', e);

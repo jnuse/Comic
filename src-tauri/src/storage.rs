@@ -108,8 +108,8 @@ pub struct AppData {
     pub settings: Settings,
     pub progress: HashMap<String, ReadingProgress>,
     pub bookmarks: Vec<Bookmark>,
-    #[serde(rename = "lastOpenedPath")]
-    pub last_opened_path: Option<String>,
+    #[serde(rename = "lastOpenedPaths")]
+    pub last_opened_paths: Option<Vec<String>>,
 }
 
 /// 获取数据目录（程序同目录）
@@ -279,15 +279,29 @@ pub fn get_settings(app: &AppHandle, cache: &AppDataCache) -> Result<Settings, S
     Ok(data.settings)
 }
 
-/// 保存最后打开的路径
+/// 保存最后打开的路径（添加到路径列表）
 pub fn save_last_opened_path(app: &AppHandle, cache: &AppDataCache, path: &str) -> Result<(), String> {
     let mut data = load_app_data(app, cache)?;
-    data.last_opened_path = Some(path.to_string());
+    
+    let mut paths = data.last_opened_paths.unwrap_or_default();
+    
+    // 如果路径已存在，先移除
+    paths.retain(|p| p != path);
+    
+    // 添加到列表开头
+    paths.insert(0, path.to_string());
+    
+    // 限制最多保存 10 个路径
+    if paths.len() > 10 {
+        paths.truncate(10);
+    }
+    
+    data.last_opened_paths = Some(paths);
     save_app_data(app, cache, &data)
 }
 
-/// 获取最后打开的路径
-pub fn get_last_opened_path(app: &AppHandle, cache: &AppDataCache) -> Result<Option<String>, String> {
+/// 获取最后打开的路径列表
+pub fn get_last_opened_path(app: &AppHandle, cache: &AppDataCache) -> Result<Option<Vec<String>>, String> {
     let data = load_app_data(app, cache)?;
-    Ok(data.last_opened_path)
+    Ok(data.last_opened_paths)
 }
