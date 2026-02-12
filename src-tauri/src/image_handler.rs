@@ -14,8 +14,8 @@ pub struct ImageInfo {
 
 /// 获取图片尺寸
 pub fn get_image_dimensions(path: &str) -> Result<(u32, u32), String> {
-    let img = image::open(path).map_err(|e| format!("无法打开图片: {}", e))?;
-    Ok((img.width(), img.height()))
+    image::image_dimensions(path)
+        .map_err(|e| format!("无法获取图片尺寸: {}", e))
 }
 
 /// 读取图片文件并返回 Base64 Data URL

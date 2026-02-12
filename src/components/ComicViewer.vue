@@ -143,6 +143,7 @@ const scrollPosition = ref(0);
 const isZooming = ref(false); // 标记是否正在缩放
 const isEditingPage = ref(false); // 是否正在编辑页码
 const editPageNumber = ref(1); // 编辑中的页码
+let intersectionObserver: IntersectionObserver | null = null; // IntersectionObserver 实例
 
 // 监听漫画切换，重置阅读器状态
 watch(
@@ -175,7 +176,11 @@ watch(
                 await loadImage(i);
             }
             isLoading.value = false;
-            
+
+            // 重新设置 IntersectionObserver
+            await nextTick();
+            setupIntersectionObserver();
+
             // 恢复新漫画的进度
             await restoreProgress();
         }
@@ -305,67 +310,81 @@ async function loadImage(index: number) {
     }
 }
 
-async function loadVisibleImages() {
-    if (!viewerRef.value) return;
-
-    const container = viewerRef.value;
-    const viewportHeight = container.clientHeight;
-
-    // 找出当前可见的图片
-    let visibleStartIndex = -1;
-    let visibleEndIndex = -1;
-
-    for (let i = 0; i < props.images.length; i++) {
-        const el = imageRefs.value.get(i);
-        if (!el) continue;
-
-        const rect = el.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-
-        const relativeTop = rect.top - containerRect.top;
-        const relativeBottom = rect.bottom - containerRect.top;
-
-        if (relativeBottom > 0 && relativeTop < viewportHeight) {
-            if (visibleStartIndex === -1) visibleStartIndex = i;
-            visibleEndIndex = i;
-        }
+// 设置 IntersectionObserver 监控图片可见性
+function setupIntersectionObserver() {
+    // 清理旧的 observer
+    if (intersectionObserver) {
+        intersectionObserver.disconnect();
     }
 
-    if (visibleStartIndex === -1) {
-        visibleStartIndex = 0;
-        visibleEndIndex = 0;
-    }
+    const options = {
+        root: viewerRef.value,
+        rootMargin: `${props.preloadCount * 800}px 0px`, // 预加载范围
+        threshold: 0
+    };
 
-    // 更新当前图片索引（取中间的）
-    const middleIndex = Math.floor((visibleStartIndex + visibleEndIndex) / 2);
-    if (middleIndex !== currentImageIndex.value) {
-        currentImageIndex.value = middleIndex;
-        emit('image-change', middleIndex);
-    }
+    intersectionObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            const index = Number(entry.target.getAttribute('data-index'));
 
-    // 加载可见图片和预加载
-    const preloadStart = Math.max(0, visibleStartIndex - props.preloadCount);
-    const preloadEnd = Math.min(props.images.length - 1, visibleEndIndex + props.preloadCount);
+            if (entry.isIntersecting) {
+                // 图片进入预加载范围，加载它
+                loadImage(index);
+            } else {
+                // 图片远离视口，释放内存
+                const rect = entry.boundingClientRect;
+                const containerRect = entry.rootBounds;
+                if (!containerRect) return;
 
-    for (let i = preloadStart; i <= preloadEnd; i++) {
-        await loadImage(i);
-    }
+                // 如果图片超出预加载范围的 2 倍距离，释放内存
+                const farThreshold = props.preloadCount * 800 * 2;
+                const isFarAbove = rect.bottom < containerRect.top - farThreshold;
+                const isFarBelow = rect.top > containerRect.bottom + farThreshold;
 
-    // 释放远离视口的图片数据，防止内存无限增长
-    const keepStart = Math.max(0, visibleStartIndex - props.preloadCount * 2);
-    const keepEnd = Math.min(props.images.length - 1, visibleEndIndex + props.preloadCount * 2);
+                if (isFarAbove || isFarBelow) {
+                    delete loadedImages.value[index];
+                    comicStore.evictImage(index);
+                }
+            }
+        });
 
-    for (const key of Object.keys(loadedImages.value)) {
-        const idx = Number(key);
-        if (idx < keepStart || idx > keepEnd) {
-            delete loadedImages.value[idx];
-            comicStore.evictImage(idx);
-        }
-    }
+        // 更新当前图片索引
+        updateCurrentImageIndex();
+    }, options);
+
+    // 观察所有图片元素
+    imageRefs.value.forEach((el) => {
+        intersectionObserver!.observe(el);
+    });
 }
 
-// 节流的加载函数
-const throttledLoadImages = useThrottleFn(loadVisibleImages, 100);
+// 更新当前图片索引（基于视口中心）
+function updateCurrentImageIndex() {
+    if (!viewerRef.value || isZooming.value) return;
+
+    const container = viewerRef.value;
+    const viewportCenter = container.scrollTop + container.clientHeight / 2;
+
+    let closestIndex = 0;
+    let minDistance = Infinity;
+
+    imageRefs.value.forEach((el, index) => {
+        const rect = el.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const imageCenter = rect.top - containerRect.top + rect.height / 2 + container.scrollTop;
+        const distance = Math.abs(imageCenter - viewportCenter);
+
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestIndex = index;
+        }
+    });
+
+    if (closestIndex !== currentImageIndex.value) {
+        currentImageIndex.value = closestIndex;
+        emit('image-change', closestIndex);
+    }
+}
 
 // 防抖的保存进度（包括缩放设置）
 const debouncedSaveProgress = useDebounceFn(() => {
@@ -381,11 +400,8 @@ const debouncedSaveProgress = useDebounceFn(() => {
 function handleScroll() {
     if (!viewerRef.value) return;
     scrollPosition.value = viewerRef.value.scrollTop;
-    
-    // 缩放过程中不更新图片索引
-    if (!isZooming.value) {
-        throttledLoadImages();
-    }
+
+    // 保存进度（防抖）
     debouncedSaveProgress();
 }
 
@@ -511,28 +527,36 @@ function handleKeyDown(event: KeyboardEvent) {
 onMounted(async () => {
     isLoading.value = true;
 
-    // 先加载前几张图片
-    for (let i = 0; i < Math.min(3, props.images.length); i++) {
-        await loadImage(i);
-    }
+    // 并行加载前几张图片
+    const initialCount = Math.min(3, props.images.length);
+    await Promise.all(
+        Array.from({ length: initialCount }, (_, i) => loadImage(i))
+    );
 
     isLoading.value = false;
 
     // 恢复进度
     await restoreProgress();
 
-    // 继续加载可见图片
-    throttledLoadImages();
-    
+    // 设置 IntersectionObserver
+    await nextTick();
+    setupIntersectionObserver();
+
     // 添加键盘监听
     window.addEventListener('keydown', handleKeyDown);
 });
 
 // 清理
 onUnmounted(() => {
+    // 清理 IntersectionObserver
+    if (intersectionObserver) {
+        intersectionObserver.disconnect();
+        intersectionObserver = null;
+    }
+
     // 移除键盘监听
     window.removeEventListener('keydown', handleKeyDown);
-    
+
     // 保存最终进度（包括缩放设置）
     progressStore.saveProgress(
         props.comicPath,
