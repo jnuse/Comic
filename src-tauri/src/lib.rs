@@ -4,14 +4,14 @@ mod storage;
 mod zip_handler;
 
 use file_system::{FileNode, scan_directory, get_images_in_directory};
-use image_handler::{ImageChunk, read_image_as_base64, get_image_dimensions, split_image_to_chunks};
+use image_handler::{ImageChunk, read_image_as_base64, read_image_as_bytes, get_image_dimensions, split_image_to_chunks};
 use storage::{
     AppData, AppDataCache, Bookmark, ReadingProgress, Settings,
     load_app_data, save_progress, get_progress,
     add_bookmark, remove_bookmark, get_bookmarks, get_comic_bookmarks,
     save_settings, get_settings, save_last_opened_path, get_last_opened_path,
 };
-use zip_handler::{ZipCache, ZipImageInfo, get_zip_image_list, read_zip_image};
+use zip_handler::{ZipCache, ZipImageInfo, get_zip_image_list, read_zip_image, read_zip_image_bytes};
 use tauri::AppHandle;
 
 // ============== 文件系统命令 ==============
@@ -48,6 +48,18 @@ fn cmd_read_zip_image(zip_path: String, image_path: String, cache: tauri::State<
 #[tauri::command]
 fn cmd_read_image(path: String) -> Result<String, String> {
     read_image_as_base64(&path)
+}
+
+/// 读取图片为二进制数据（用于 Blob URL）
+#[tauri::command]
+fn cmd_read_image_bytes(path: String) -> Result<Vec<u8>, String> {
+    read_image_as_bytes(&path)
+}
+
+/// 读取 ZIP 中的图片为二进制数据（用于 Blob URL）
+#[tauri::command]
+fn cmd_read_zip_image_bytes(zip_path: String, image_path: String, cache: tauri::State<ZipCache>) -> Result<Vec<u8>, String> {
+    read_zip_image_bytes(&zip_path, &image_path, &cache)
 }
 
 /// 获取图片尺寸
@@ -145,8 +157,10 @@ pub fn run() {
             // ZIP
             cmd_get_zip_images,
             cmd_read_zip_image,
+            cmd_read_zip_image_bytes,
             // 图片
             cmd_read_image,
+            cmd_read_image_bytes,
             cmd_get_image_dimensions,
             cmd_split_image,
             // 存储

@@ -4,15 +4,17 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 use std::sync::Mutex;
 use zip::ZipArchive;
+use lru::LruCache;
+use std::num::NonZeroUsize;
 
 use crate::file_system::is_image_file;
 
-/// ZIP 句柄缓存：只缓存当前正在读的那一个 ZIP
-pub struct ZipCache(pub Mutex<Option<(String, ZipArchive<BufReader<File>>)>>);
+/// ZIP 句柄缓存：使用 LRU 缓存保留最近使用的 5 个 ZIP
+pub struct ZipCache(pub Mutex<LruCache<String, ZipArchive<BufReader<File>>>>);
 
 impl Default for ZipCache {
     fn default() -> Self {
-        Self(Mutex::new(None))
+        Self(Mutex::new(LruCache::new(NonZeroUsize::new(5).unwrap())))
     }
 }
 
@@ -83,7 +85,7 @@ pub fn get_zip_image_list(zip_path: &str) -> Result<Vec<ZipImageInfo>, String> {
     Ok(images)
 }
 
-/// 从 ZIP 文件中读取指定图片的数据（Base64），复用缓存的 ZIP 句柄
+/// 从 ZIP 文件中读取指定图片的数据（Base64），使用 LRU 缓存
 pub fn read_zip_image(zip_path: &str, image_path: &str, cache: &ZipCache) -> Result<String, String> {
     let path = Path::new(zip_path);
 
@@ -93,20 +95,16 @@ pub fn read_zip_image(zip_path: &str, image_path: &str, cache: &ZipCache) -> Res
 
     let mut guard = cache.0.lock().map_err(|e| format!("锁获取失败: {}", e))?;
 
-    // 如果缓存的不是当前 ZIP，替换
-    let need_open = match guard.as_ref() {
-        Some((cached_path, _)) => cached_path != zip_path,
-        None => true,
-    };
-
-    if need_open {
+    // 检查 LRU 缓存中是否存在，不存在则打开并插入
+    if !guard.contains(&zip_path.to_string()) {
         let file = File::open(path).map_err(|e| format!("无法打开文件: {}", e))?;
         let archive = ZipArchive::new(BufReader::new(file))
             .map_err(|e| format!("无法读取 ZIP: {}", e))?;
-        *guard = Some((zip_path.to_string(), archive));
+        guard.put(zip_path.to_string(), archive);
     }
 
-    let (_, archive) = guard.as_mut().unwrap();
+    // 从 LRU 缓存获取（会自动更新访问顺序）
+    let archive = guard.get_mut(&zip_path.to_string()).unwrap();
 
     let mut zip_file = archive
         .by_name(image_path)
@@ -121,6 +119,39 @@ pub fn read_zip_image(zip_path: &str, image_path: &str, cache: &ZipCache) -> Res
     let base64_data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &buffer);
 
     Ok(format!("data:{};base64,{}", mime_type, base64_data))
+}
+
+/// 从 ZIP 文件中读取指定图片的二进制数据（用于 Blob URL）
+pub fn read_zip_image_bytes(zip_path: &str, image_path: &str, cache: &ZipCache) -> Result<Vec<u8>, String> {
+    let path = Path::new(zip_path);
+
+    if !path.exists() {
+        return Err(format!("ZIP 文件不存在: {}", zip_path));
+    }
+
+    let mut guard = cache.0.lock().map_err(|e| format!("锁获取失败: {}", e))?;
+
+    // 检查 LRU 缓存中是否存在，不存在则打开并插入
+    if !guard.contains(&zip_path.to_string()) {
+        let file = File::open(path).map_err(|e| format!("无法打开文件: {}", e))?;
+        let archive = ZipArchive::new(BufReader::new(file))
+            .map_err(|e| format!("无法读取 ZIP: {}", e))?;
+        guard.put(zip_path.to_string(), archive);
+    }
+
+    // 从 LRU 缓存获取（会自动更新访问顺序）
+    let archive = guard.get_mut(&zip_path.to_string()).unwrap();
+
+    let mut zip_file = archive
+        .by_name(image_path)
+        .map_err(|e| format!("无法找到图片: {}", e))?;
+
+    let mut buffer = Vec::new();
+    zip_file
+        .read_to_end(&mut buffer)
+        .map_err(|e| format!("无法读取图片数据: {}", e))?;
+
+    Ok(buffer)
 }
 
 /// 批量读取 ZIP 中的图片

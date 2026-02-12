@@ -30,6 +30,7 @@ walkdir = "2"
 natord = "1.0"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
 tokio = { version = "1", default-features = false, features = ["fs", "io-util"] }
+lru = "0.12"
 
 [profile.release]
 # 平衡编译速度和产物大小

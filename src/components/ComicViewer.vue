@@ -152,12 +152,19 @@ watch(
         if (newPath !== oldPath && oldPath) {
             // 保存旧漫画的进度（包括缩放设置）
             progressStore.saveProgress(
-                oldPath, 
-                currentImageIndex.value, 
+                oldPath,
+                currentImageIndex.value,
                 scrollPosition.value,
                 props.zoomMode,
                 props.customZoom
             );
+            
+            // 释放旧漫画的所有 Blob URL
+            Object.values(loadedImages.value).forEach(url => {
+                if (url.startsWith('blob:')) {
+                    URL.revokeObjectURL(url);
+                }
+            });
             
             // 重置状态
             loadedImages.value = {};
@@ -393,7 +400,7 @@ function updateCurrentImageIndex() {
     }
 }
 
-// 防抖的保存进度（包括缩放设置）
+// 防抖的保存进度（包括缩放设置）- 延长到 2 秒减少磁盘写入
 const debouncedSaveProgress = useDebounceFn(() => {
     progressStore.saveProgress(
         props.comicPath,
@@ -402,7 +409,7 @@ const debouncedSaveProgress = useDebounceFn(() => {
         props.zoomMode,
         props.customZoom
     );
-}, 1000);
+}, 2000);
 
 function handleScroll() {
     if (!viewerRef.value) return;
@@ -563,6 +570,13 @@ onUnmounted(() => {
 
     // 移除键盘监听
     window.removeEventListener('keydown', handleKeyDown);
+
+    // 释放所有 Blob URL
+    Object.values(loadedImages.value).forEach(url => {
+        if (url.startsWith('blob:')) {
+            URL.revokeObjectURL(url);
+        }
+    });
 
     // 保存最终进度（包括缩放设置）
     progressStore.saveProgress(

@@ -33,6 +33,17 @@ pub fn read_image_as_base64(path: &str) -> Result<String, String> {
     Ok(format!("data:{};base64,{}", mime_type, base64_data))
 }
 
+/// 读取图片文件并返回二进制数据（用于 Blob URL）
+pub fn read_image_as_bytes(path: &str) -> Result<Vec<u8>, String> {
+    let path_obj = Path::new(path);
+    
+    if !path_obj.exists() {
+        return Err(format!("图片不存在: {}", path));
+    }
+
+    fs::read(path).map_err(|e| format!("无法读取图片: {}", e))
+}
+
 /// 批量读取图片
 pub fn read_images_batch(paths: Vec<String>) -> Vec<(String, Result<String, String>)> {
     paths
