@@ -96,16 +96,17 @@ pub fn read_zip_image(zip_path: &str, image_path: &str, cache: &ZipCache) -> Res
     let mut guard = cache.0.lock().map_err(|e| format!("锁获取失败: {}", e))?;
 
     // 检查 LRU 缓存中是否存在，不存在则打开并插入
-    if !guard.contains(&zip_path.to_string()) {
+    let key = zip_path.to_string();
+    if !guard.contains(&key) {
         let file = File::open(path).map_err(|e| format!("无法打开文件: {}", e))?;
         let archive = ZipArchive::new(BufReader::new(file))
             .map_err(|e| format!("无法读取 ZIP: {}", e))?;
-        guard.put(zip_path.to_string(), archive);
+        guard.put(key.clone(), archive);
     }
 
-    // 从 LRU 缓存获取（会自动更新访问顺序）
-    let archive = guard.get_mut(&zip_path.to_string()).unwrap();
-
+    // 从 LRU 缓存获取并读取数据
+    let archive = guard.get_mut(&key).ok_or("缓存获取失败")?;
+    
     let mut zip_file = archive
         .by_name(image_path)
         .map_err(|e| format!("无法找到图片: {}", e))?;
@@ -132,16 +133,17 @@ pub fn read_zip_image_bytes(zip_path: &str, image_path: &str, cache: &ZipCache) 
     let mut guard = cache.0.lock().map_err(|e| format!("锁获取失败: {}", e))?;
 
     // 检查 LRU 缓存中是否存在，不存在则打开并插入
-    if !guard.contains(&zip_path.to_string()) {
+    let key = zip_path.to_string();
+    if !guard.contains(&key) {
         let file = File::open(path).map_err(|e| format!("无法打开文件: {}", e))?;
         let archive = ZipArchive::new(BufReader::new(file))
             .map_err(|e| format!("无法读取 ZIP: {}", e))?;
-        guard.put(zip_path.to_string(), archive);
+        guard.put(key.clone(), archive);
     }
 
-    // 从 LRU 缓存获取（会自动更新访问顺序）
-    let archive = guard.get_mut(&zip_path.to_string()).unwrap();
-
+    // 从 LRU 缓存获取并读取数据
+    let archive = guard.get_mut(&key).ok_or("缓存获取失败")?;
+    
     let mut zip_file = archive
         .by_name(image_path)
         .map_err(|e| format!("无法找到图片: {}", e))?;
