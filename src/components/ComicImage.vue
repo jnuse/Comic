@@ -1,5 +1,5 @@
 <template>
-    <div class="image-wrapper" :data-index="index">
+    <div ref="wrapperRef" class="image-wrapper" :data-index="index">
         <img
             v-if="imageSrc"
             :src="imageSrc"
@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { watch } from 'vue';
+import { ref, watch } from 'vue';
 import type { ImageInfo } from '../types';
 
 const props = defineProps<{
@@ -38,6 +38,14 @@ const emit = defineEmits<{
     (e: 'load', index: number): void;
     (e: 'error', index: number): void;
 }>();
+
+// 根元素引用
+const wrapperRef = ref<HTMLElement | null>(null);
+
+// 暴露根元素给父组件
+defineExpose({
+    $el: wrapperRef
+});
 
 // 监听 imageSrc 变化
 watch(() => props.imageSrc, (newSrc, oldSrc) => {

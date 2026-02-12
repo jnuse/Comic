@@ -18,7 +18,13 @@
             <ComicImage
                 v-for="(image, index) in images"
                 :key="image.path"
-                :ref="(el) => scrollManager.setImageRef(index, el as any)"
+                :ref="(el: any) => {
+                    if (el && el.$el && el.$el.value) {
+                        scrollManager.setImageRef(index, el.$el.value);
+                    } else {
+                        scrollManager.setImageRef(index, null);
+                    }
+                }"
                 :image="image"
                 :index="index"
                 :total-images="images.length"
