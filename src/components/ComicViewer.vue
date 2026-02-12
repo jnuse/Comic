@@ -145,6 +145,11 @@ const isEditingPage = ref(false); // 是否正在编辑页码
 const editPageNumber = ref(1); // 编辑中的页码
 let intersectionObserver: IntersectionObserver | null = null; // IntersectionObserver 实例
 
+// 图片加载队列管理
+const loadingQueue = ref<Set<number>>(new Set()); // 正在加载的图片索引
+const pendingLoads = ref<Set<number>>(new Set()); // 待加载的图片索引
+const MAX_CONCURRENT_LOADS = 3; // 最大并发加载数
+
 // 监听漫画切换，重置阅读器状态
 watch(
     () => props.comicPath,
@@ -171,6 +176,10 @@ watch(
             currentImageIndex.value = 0;
             scrollPosition.value = 0;
             imageRefs.value.clear();
+            
+            // 清理加载队列
+            loadingQueue.value.clear();
+            pendingLoads.value.clear();
 
             // 清理旧的 IntersectionObserver
             if (intersectionObserver) {
@@ -316,12 +325,76 @@ async function loadImage(index: number) {
         return;
     }
 
+    // 如果已在加载队列中，跳过
+    if (loadingQueue.value.has(index)) {
+        return;
+    }
+
+    // 添加到待加载队列
+    pendingLoads.value.add(index);
+    
+    // 处理加载队列
+    processLoadQueue();
+}
+
+// 处理加载队列，控制并发数
+async function processLoadQueue() {
+    // 如果已达到最大并发数，等待
+    if (loadingQueue.value.size >= MAX_CONCURRENT_LOADS) {
+        return;
+    }
+
+    // 从待加载队列中取出一个任务
+    const pendingArray = Array.from(pendingLoads.value);
+    if (pendingArray.length === 0) {
+        return;
+    }
+
+    // 优先加载靠近当前图片的索引
+    pendingArray.sort((a, b) => {
+        const distA = Math.abs(a - currentImageIndex.value);
+        const distB = Math.abs(b - currentImageIndex.value);
+        return distA - distB;
+    });
+
+    const index = pendingArray[0];
+    pendingLoads.value.delete(index);
+
+    // 再次检查是否已加载（可能在排队期间已加载）
+    if (loadedImages.value[index]) {
+        processLoadQueue(); // 继续处理下一个
+        return;
+    }
+
+    // 标记为正在加载
+    loadingQueue.value.add(index);
+
     try {
         const data = await comicStore.loadImage(index);
         loadedImages.value[index] = data;
     } catch (e) {
         console.error(`加载图片 ${index} 失败:`, e);
+    } finally {
+        // 从加载队列中移除
+        loadingQueue.value.delete(index);
+        
+        // 继续处理队列中的下一个任务
+        processLoadQueue();
     }
+}
+
+// 清理不再需要的待加载任务
+function cleanupPendingLoads(visibleIndices: Set<number>) {
+    const toRemove: number[] = [];
+    
+    pendingLoads.value.forEach(index => {
+        // 如果不在可见范围内，取消加载
+        if (!visibleIndices.has(index)) {
+            toRemove.push(index);
+        }
+    });
+    
+    toRemove.forEach(index => pendingLoads.value.delete(index));
 }
 
 // 设置 IntersectionObserver 监控图片可见性
@@ -337,12 +410,16 @@ function setupIntersectionObserver() {
         threshold: 0
     };
 
-    intersectionObserver = new IntersectionObserver((entries) => {
+    // 使用防抖来处理快速滚动
+    const debouncedIntersectionHandler = useDebounceFn((entries: IntersectionObserverEntry[]) => {
+        const visibleIndices = new Set<number>();
+        
         entries.forEach(entry => {
             const index = Number(entry.target.getAttribute('data-index'));
 
             if (entry.isIntersecting) {
-                // 图片进入预加载范围，加载它
+                // 图片进入预加载范围
+                visibleIndices.add(index);
                 loadImage(index);
             } else {
                 // 图片远离视口，释放内存
@@ -362,8 +439,17 @@ function setupIntersectionObserver() {
             }
         });
 
+        // 清理不再需要的待加载任务
+        if (visibleIndices.size > 0) {
+            cleanupPendingLoads(visibleIndices);
+        }
+
         // 更新当前图片索引
         updateCurrentImageIndex();
+    }, 100); // 100ms 防抖
+
+    intersectionObserver = new IntersectionObserver((entries) => {
+        debouncedIntersectionHandler(entries);
     }, options);
 
     // 观察所有图片元素
