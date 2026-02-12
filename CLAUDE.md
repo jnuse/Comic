@@ -58,12 +58,18 @@ Comic/
 │   ├── assets/
 │   │   └── vue.svg
 │   ├── components/
-│   │   ├── ComicViewer.vue        # 漫画阅读器：竖屏滚动、缩放、进度保存
+│   │   ├── ComicViewer.vue        # 漫画阅读器主组件：整合子组件和逻辑
+│   │   ├── ComicImage.vue         # 单个图片组件：显示图片或占位符
+│   │   ├── ComicToolbar.vue       # 悬浮工具栏：翻页、书签、缩放控制
 │   │   ├── FileTree.vue           # 文件树导航容器
 │   │   ├── FileTreeNode.vue       # 文件树节点，递归渲染
 │   │   ├── BookmarksPanel.vue     # 书签管理面板
 │   │   ├── SettingsPanel.vue      # 设置面板 (主题、缩放、比例)
 │   │   └── ThemeToggle.vue        # 浅色/深色主题切换
+│   ├── composables/
+│   │   ├── index.ts               # Composables 统一导出
+│   │   ├── useImageLoader.ts      # 图片加载队列管理：并发控制、优先级排序
+│   │   └── useScrollManager.ts    # 滚动管理：位置追踪、进度保存、翻页导航
 │   ├── stores/
 │   │   ├── index.ts               # Store 统一导出
 │   │   ├── comic.ts               # 漫画状态 (文件树、当前漫画、图片)
