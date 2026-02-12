@@ -102,7 +102,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import type { ImageInfo, ZoomMode, AspectRatio } from '../types';
 import { useComicStore, useBookmarkStore, useProgressStore } from '../stores';
-import { useDebounceFn, useThrottleFn } from '@vueuse/core';
+import { useDebounceFn } from '@vueuse/core';
 
 const props = defineProps<{
     images: ImageInfo[];
@@ -164,17 +164,24 @@ watch(
             currentImageIndex.value = 0;
             scrollPosition.value = 0;
             imageRefs.value.clear();
-            
+
+            // 清理旧的 IntersectionObserver
+            if (intersectionObserver) {
+                intersectionObserver.disconnect();
+                intersectionObserver = null;
+            }
+
             // 滚动到顶部
             if (viewerRef.value) {
                 viewerRef.value.scrollTop = 0;
             }
-            
-            // 加载新漫画
+
+            // 加载新漫画（并行）
             isLoading.value = true;
-            for (let i = 0; i < Math.min(3, props.images.length); i++) {
-                await loadImage(i);
-            }
+            const initialCount = Math.min(3, props.images.length);
+            await Promise.all(
+                Array.from({ length: initialCount }, (_, i) => loadImage(i))
+            );
             isLoading.value = false;
 
             // 重新设置 IntersectionObserver
