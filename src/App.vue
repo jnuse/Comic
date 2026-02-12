@@ -22,7 +22,7 @@ const showSettings = ref(false);
 // 计算属性
 const settings = computed(() => settingsStore.settings);
 const currentComic = computed(() => comicStore.currentComic);
-const fileTree = computed(() => comicStore.fileTree);
+const fileTrees = computed(() => comicStore.fileTrees);
 const bookmarks = computed(() => bookmarkStore.bookmarks);
 const isFullscreen = computed(() => settings.value.readerMode === 'fullscreen');
 const hasComic = computed(() => currentComic.value !== null);
@@ -54,6 +54,10 @@ async function handleNodeSelect(node: FileNode) {
   } catch (e) {
     console.error('打开漫画失败:', e);
   }
+}
+
+function handleRemoveTree(path: string) {
+  comicStore.removeFileTree(path);
 }
 
 function handleCloseReader() {
@@ -164,7 +168,7 @@ onMounted(async () => {
         </button>
 
         <div class="file-tree-container">
-          <FileTree :tree="fileTree" @select="handleNodeSelect" />
+          <FileTree :trees="fileTrees" @select="handleNodeSelect" @remove="handleRemoveTree" />
         </div>
       </aside>
 
@@ -192,7 +196,7 @@ onMounted(async () => {
         </div>
 
         <!-- 无漫画时显示提示 -->
-        <div v-else-if="!fileTree" class="empty-state">
+        <div v-else-if="fileTrees.length === 0" class="empty-state">
           <div class="empty-icon">📚</div>
           <h2>欢迎使用 Comic Reader</h2>
           <p>点击左侧「选择文件夹」按钮开始浏览漫画</p>

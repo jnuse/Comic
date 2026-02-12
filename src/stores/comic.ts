@@ -5,8 +5,7 @@ import type { FileNode, ComicInfo, ImageInfo, ZipImageInfo } from "../types";
 
 export const useComicStore = defineStore("comic", () => {
   // 状态
-  const rootPath = ref<string | null>(null);
-  const fileTree = ref<FileNode | null>(null);
+  const fileTrees = ref<FileNode[]>([]);  // 改为数组，支持多个根节点
   const currentComic = ref<ComicInfo | null>(null);
   const isLoading = ref(false);
   const loadingProgress = ref(0);
@@ -26,14 +25,31 @@ export const useComicStore = defineStore("comic", () => {
         path,
         maxDepth,
       });
-      rootPath.value = path;
-      fileTree.value = tree;
+      
+      // 检查是否已存在相同路径的树
+      const existingIndex = fileTrees.value.findIndex(t => t.path === tree.path);
+      if (existingIndex >= 0) {
+        // 替换已存在的树
+        fileTrees.value[existingIndex] = tree;
+      } else {
+        // 添加新树
+        fileTrees.value.push(tree);
+      }
+      
       return tree;
     } catch (e) {
       error.value = String(e);
       throw e;
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  // 移除文件树
+  function removeFileTree(path: string) {
+    const index = fileTrees.value.findIndex(t => t.path === path);
+    if (index >= 0) {
+      fileTrees.value.splice(index, 1);
     }
   }
 
@@ -252,8 +268,7 @@ export const useComicStore = defineStore("comic", () => {
         }
       });
     }
-    rootPath.value = null;
-    fileTree.value = null;
+    fileTrees.value = [];
     currentComic.value = null;
     isLoading.value = false;
     loadingProgress.value = 0;
@@ -262,8 +277,7 @@ export const useComicStore = defineStore("comic", () => {
 
   return {
     // 状态
-    rootPath,
-    fileTree,
+    fileTrees,
     currentComic,
     isLoading,
     loadingProgress,
@@ -273,6 +287,7 @@ export const useComicStore = defineStore("comic", () => {
     imageCount,
     // 方法
     scanDirectory,
+    removeFileTree,
     openComicFromFolder,
     openComicFromZip,
     openComic,
