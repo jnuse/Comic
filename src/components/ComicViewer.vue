@@ -56,7 +56,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import { useDebounceFn } from '@vueuse/core';
 import type { ImageInfo, ZoomMode, AspectRatio } from '../types';
 import { useBookmarkStore } from '../stores';
 import { useImageLoader } from '../composables/useImageLoader';
@@ -237,7 +236,7 @@ function setupIntersectionObserver() {
         threshold: 0
     };
 
-    const debouncedHandler = useDebounceFn((entries: IntersectionObserverEntry[]) => {
+    intersectionObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             const index = Number(entry.target.getAttribute('data-index'));
 
@@ -263,13 +262,9 @@ function setupIntersectionObserver() {
         const newIndex = scrollManager.updateCurrentImageIndex();
         if (newIndex !== null && newIndex !== undefined) {
             emit('image-change', newIndex);
-            imageLoader.setCurrentImageIndex(newIndex);
         }
-    }, 100);
-
-    intersectionObserver = new IntersectionObserver((entries) => {
-        debouncedHandler(entries);
     }, options);
+
 
     scrollManager.imageRefs.value.forEach((el) => {
         intersectionObserver!.observe(el);
