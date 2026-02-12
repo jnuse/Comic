@@ -237,10 +237,13 @@ function setupIntersectionObserver() {
     };
 
     intersectionObserver = new IntersectionObserver((entries) => {
+        console.log(`[ComicViewer] IntersectionObserver 触发，条目数: ${entries.length}`);
+        
         entries.forEach(entry => {
             const index = Number(entry.target.getAttribute('data-index'));
 
             if (entry.isIntersecting) {
+                console.log(`[ComicViewer] 图片 ${index} 进入视口，触发加载`);
                 // 进入预加载范围，触发加载
                 imageLoader.loadImage(index, props.images.length);
             } else {
@@ -254,13 +257,17 @@ function setupIntersectionObserver() {
                 const isFarBelow = rect.top > containerRect.bottom + farThreshold;
 
                 if (isFarAbove || isFarBelow) {
+                    console.log(`[ComicViewer] 图片 ${index} 离开视口较远，触发释放 (farAbove: ${isFarAbove}, farBelow: ${isFarBelow})`);
                     imageLoader.evictImage(index);
+                } else {
+                    console.log(`[ComicViewer] 图片 ${index} 离开视口但仍在范围内，不释放`);
                 }
             }
         });
 
         const newIndex = scrollManager.updateCurrentImageIndex();
         if (newIndex !== null && newIndex !== undefined) {
+            console.log(`[ComicViewer] 当前图片索引更新为: ${newIndex}`);
             emit('image-change', newIndex);
         }
     }, options);

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
-import { invoke } from '@tauri-apps/api/core';
 import FileTree from './components/FileTree.vue';
 import ComicViewer from './components/ComicViewer.vue';
 import ThemeToggle from './components/ThemeToggle.vue';
