@@ -97,12 +97,18 @@ export interface Settings {
   customAspectHeight: number;
 }
 
+// 打开的目录
+export interface OpenedDirectory {
+  path: string;
+  openedAt: number;
+}
+
 // 应用数据
 export interface AppData {
   settings: Settings;
   progress: Record<string, ReadingProgress>;
   bookmarks: Bookmark[];
-  lastOpenedPaths?: string[];  // 改为数组，支持多个路径
+  openedDirectories: OpenedDirectory[];
 }
 
 // 默认设置

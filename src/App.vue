@@ -38,8 +38,6 @@ async function selectFolder() {
 
     if (selected && typeof selected === 'string') {
       await comicStore.scanDirectory(selected);
-      // 保存路径
-      await invoke('cmd_save_last_path', { path: selected });
     }
   } catch (e) {
     console.error('选择文件夹失败:', e);
@@ -111,22 +109,8 @@ onMounted(async () => {
   // 加载书签
   await bookmarkStore.loadBookmarks();
 
-  // 尝试加载上次打开的路径列表
-  try {
-    const lastPaths = await invoke<string[] | null>('cmd_get_last_path');
-    if (lastPaths && lastPaths.length > 0) {
-      // 加载所有保存的路径
-      for (const path of lastPaths) {
-        try {
-          await comicStore.scanDirectory(path);
-        } catch (e) {
-          console.error(`加载路径 ${path} 失败:`, e);
-        }
-      }
-    }
-  } catch (e) {
-    console.error('加载上次路径失败:', e);
-  }
+  // 加载已保存的目录树
+  await comicStore.loadSavedDirectories();
 });
 </script>
 

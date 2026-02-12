@@ -102,14 +102,22 @@ impl Default for Settings {
     }
 }
 
+/// 打开的目录树根节点
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenedDirectory {
+    pub path: String,
+    #[serde(rename = "openedAt")]
+    pub opened_at: u64,
+}
+
 /// 应用数据
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppData {
     pub settings: Settings,
     pub progress: HashMap<String, ReadingProgress>,
     pub bookmarks: Vec<Bookmark>,
-    #[serde(rename = "lastOpenedPaths")]
-    pub last_opened_paths: Option<Vec<String>>,
+    #[serde(rename = "openedDirectories", default)]
+    pub opened_directories: Vec<OpenedDirectory>,
 }
 
 /// 获取数据目录（程序同目录）
@@ -279,29 +287,39 @@ pub fn get_settings(app: &AppHandle, cache: &AppDataCache) -> Result<Settings, S
     Ok(data.settings)
 }
 
-/// 保存最后打开的路径（添加到路径列表）
-pub fn save_last_opened_path(app: &AppHandle, cache: &AppDataCache, path: &str) -> Result<(), String> {
+/// 保存打开的目录
+pub fn save_opened_directory(app: &AppHandle, cache: &AppDataCache, path: &str) -> Result<(), String> {
     let mut data = load_app_data(app, cache)?;
     
-    let mut paths = data.last_opened_paths.unwrap_or_default();
-    
     // 如果路径已存在，先移除
-    paths.retain(|p| p != path);
+    data.opened_directories.retain(|d| d.path != path);
     
     // 添加到列表开头
-    paths.insert(0, path.to_string());
+    data.opened_directories.insert(0, OpenedDirectory {
+        path: path.to_string(),
+        opened_at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64,
+    });
     
-    // 限制最多保存 10 个路径
-    if paths.len() > 10 {
-        paths.truncate(10);
+    // 限制最多保存 10 个目录
+    if data.opened_directories.len() > 10 {
+        data.opened_directories.truncate(10);
     }
     
-    data.last_opened_paths = Some(paths);
     save_app_data(app, cache, &data)
 }
 
-/// 获取最后打开的路径列表
-pub fn get_last_opened_path(app: &AppHandle, cache: &AppDataCache) -> Result<Option<Vec<String>>, String> {
+/// 移除打开的目录
+pub fn remove_opened_directory(app: &AppHandle, cache: &AppDataCache, path: &str) -> Result<(), String> {
+    let mut data = load_app_data(app, cache)?;
+    data.opened_directories.retain(|d| d.path != path);
+    save_app_data(app, cache, &data)
+}
+
+/// 获取所有打开的目录
+pub fn get_opened_directories(app: &AppHandle, cache: &AppDataCache) -> Result<Vec<OpenedDirectory>, String> {
     let data = load_app_data(app, cache)?;
-    Ok(data.last_opened_paths)
+    Ok(data.opened_directories)
 }

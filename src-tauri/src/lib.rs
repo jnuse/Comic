@@ -6,10 +6,11 @@ mod zip_handler;
 use file_system::{FileNode, scan_directory, get_images_in_directory};
 use image_handler::{ImageChunk, read_image_as_base64, read_image_as_bytes, get_image_dimensions, split_image_to_chunks};
 use storage::{
-    AppData, AppDataCache, Bookmark, ReadingProgress, Settings,
+    AppData, AppDataCache, Bookmark, ReadingProgress, Settings, OpenedDirectory,
     load_app_data, save_progress, get_progress,
     add_bookmark, remove_bookmark, get_bookmarks, get_comic_bookmarks,
-    save_settings, get_settings, save_last_opened_path, get_last_opened_path,
+    save_settings, get_settings,
+    save_opened_directory, remove_opened_directory, get_opened_directories,
 };
 use zip_handler::{ZipCache, ZipImageInfo, get_zip_image_list, read_zip_image, read_zip_image_bytes};
 use tauri::AppHandle;
@@ -124,16 +125,22 @@ fn cmd_get_settings(app: AppHandle, cache: tauri::State<AppDataCache>) -> Result
     get_settings(&app, &cache)
 }
 
-/// 保存最后打开的路径
+/// 保存打开的目录
 #[tauri::command]
-fn cmd_save_last_path(app: AppHandle, cache: tauri::State<AppDataCache>, path: String) -> Result<(), String> {
-    save_last_opened_path(&app, &cache, &path)
+fn cmd_save_opened_directory(app: AppHandle, cache: tauri::State<AppDataCache>, path: String) -> Result<(), String> {
+    save_opened_directory(&app, &cache, &path)
 }
 
-/// 获取最后打开的路径列表
+/// 移除打开的目录
 #[tauri::command]
-fn cmd_get_last_path(app: AppHandle, cache: tauri::State<AppDataCache>) -> Result<Option<Vec<String>>, String> {
-    get_last_opened_path(&app, &cache)
+fn cmd_remove_opened_directory(app: AppHandle, cache: tauri::State<AppDataCache>, path: String) -> Result<(), String> {
+    remove_opened_directory(&app, &cache, &path)
+}
+
+/// 获取所有打开的目录
+#[tauri::command]
+fn cmd_get_opened_directories(app: AppHandle, cache: tauri::State<AppDataCache>) -> Result<Vec<OpenedDirectory>, String> {
+    get_opened_directories(&app, &cache)
 }
 
 /// 加载所有应用数据
@@ -172,8 +179,9 @@ pub fn run() {
             cmd_get_comic_bookmarks,
             cmd_save_settings,
             cmd_get_settings,
-            cmd_save_last_path,
-            cmd_get_last_path,
+            cmd_save_opened_directory,
+            cmd_remove_opened_directory,
+            cmd_get_opened_directories,
             cmd_load_app_data,
         ])
         .run(tauri::generate_context!())

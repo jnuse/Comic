@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import type { FileNode, ComicInfo, ImageInfo, ZipImageInfo } from "../types";
+import type { FileNode, ComicInfo, ImageInfo, ZipImageInfo, OpenedDirectory } from "../types";
 
 export const useComicStore = defineStore("comic", () => {
   // 状态
@@ -37,6 +37,9 @@ export const useComicStore = defineStore("comic", () => {
         fileTrees.value.push(tree);
       }
       
+      // 保存到持久化存储
+      await saveOpenedDirectory(path);
+      
       return tree;
     } catch (e) {
       error.value = String(e);
@@ -47,10 +50,51 @@ export const useComicStore = defineStore("comic", () => {
   }
 
   // 移除文件树
-  function removeFileTree(path: string) {
+  async function removeFileTree(path: string) {
     const index = fileTrees.value.findIndex(t => t.path === path);
     if (index >= 0) {
       fileTrees.value.splice(index, 1);
+    }
+    
+    // 从持久化存储中移除
+    await removeOpenedDirectory(path);
+  }
+
+  // 保存打开的目录
+  async function saveOpenedDirectory(path: string) {
+    try {
+      await invoke("cmd_save_opened_directory", { path });
+    } catch (e) {
+      console.error("保存目录失败:", e);
+    }
+  }
+
+  // 移除打开的目录
+  async function removeOpenedDirectory(path: string) {
+    try {
+      await invoke("cmd_remove_opened_directory", { path });
+    } catch (e) {
+      console.error("移除目录失败:", e);
+    }
+  }
+
+  // 加载已保存的目录
+  async function loadSavedDirectories() {
+    try {
+      const directories = await invoke<OpenedDirectory[]>("cmd_get_opened_directories");
+      
+      // 按打开时间倒序加载
+      for (const dir of directories) {
+        try {
+          await scanDirectory(dir.path);
+        } catch (e) {
+          console.error(`加载目录 ${dir.path} 失败:`, e);
+          // 如果加载失败，从持久化存储中移除
+          await removeOpenedDirectory(dir.path);
+        }
+      }
+    } catch (e) {
+      console.error("加载已保存的目录失败:", e);
     }
   }
 
@@ -335,6 +379,7 @@ export const useComicStore = defineStore("comic", () => {
     // 方法
     scanDirectory,
     removeFileTree,
+    loadSavedDirectories,
     openComicFromFolder,
     openComicFromZip,
     openComic,
