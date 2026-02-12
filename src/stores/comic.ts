@@ -10,6 +10,7 @@ export const useComicStore = defineStore("comic", () => {
   const isLoading = ref(false);
   const loadingProgress = ref(0);
   const error = ref<string | null>(null);
+  const imageLoadingStates = ref<Record<number, boolean>>({});  // 追踪图片加载状态
 
   // 计算属性
   const hasComic = computed(() => currentComic.value !== null);
@@ -149,6 +150,31 @@ export const useComicStore = defineStore("comic", () => {
       return image.data;
     }
 
+    // 如果正在加载中，等待加载完成
+    if (imageLoadingStates.value[index]) {
+      // 轮询等待加载完成
+      return new Promise((resolve, reject) => {
+        const checkInterval = setInterval(() => {
+          if (!imageLoadingStates.value[index]) {
+            clearInterval(checkInterval);
+            if (image.data) {
+              resolve(image.data);
+            } else {
+              reject(new Error(`图片 ${index} 加载失败`));
+            }
+          }
+        }, 50);
+        
+        // 超时保护（10秒）
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          reject(new Error(`图片 ${index} 加载超时`));
+        }, 10000);
+      });
+    }
+
+    imageLoadingStates.value[index] = true;  // 标记为加载中
+
     try {
       let blobUrl: string;
 
@@ -173,12 +199,21 @@ export const useComicStore = defineStore("comic", () => {
         blobUrl = URL.createObjectURL(blob);
       }
 
+      // 再次检查是否已被取消（防止竞态条件）
+      if (!imageLoadingStates.value[index]) {
+        // 已被取消，释放刚创建的 Blob URL
+        URL.revokeObjectURL(blobUrl);
+        throw new Error(`图片 ${index} 加载已取消`);
+      }
+
       // 缓存 Blob URL
       currentComic.value.images[index].data = blobUrl;
 
       return blobUrl;
     } catch (e) {
       throw new Error(`加载图片失败: ${e}`);
+    } finally {
+      delete imageLoadingStates.value[index];  // 清除加载状态
     }
   }
 
@@ -233,6 +268,12 @@ export const useComicStore = defineStore("comic", () => {
   // 释放指定图片的缓存数据（包括释放 Blob URL）
   function evictImage(index: number) {
     if (!currentComic.value) return;
+    
+    // 如果正在加载，取消加载
+    if (imageLoadingStates.value[index]) {
+      delete imageLoadingStates.value[index];
+    }
+    
     const image = currentComic.value.images[index];
     if (image && image.data) {
       // 如果是 Blob URL，需要释放
@@ -245,6 +286,9 @@ export const useComicStore = defineStore("comic", () => {
 
   // 清除当前漫画（释放所有 Blob URL）
   function clearComic() {
+    // 取消所有正在加载的图片
+    imageLoadingStates.value = {};
+    
     if (currentComic.value) {
       // 释放所有 Blob URL
       currentComic.value.images.forEach((img) => {
@@ -260,6 +304,9 @@ export const useComicStore = defineStore("comic", () => {
 
   // 清除所有状态（释放所有 Blob URL）
   function clearAll() {
+    // 取消所有正在加载的图片
+    imageLoadingStates.value = {};
+    
     if (currentComic.value) {
       // 释放所有 Blob URL
       currentComic.value.images.forEach((img) => {
