@@ -72,11 +72,20 @@ export function useImageLoader() {
     }
     
     // 清理不再需要的待加载任务
-    function cleanupPendingLoads(visibleIndices: Set<number>) {
+    // 保留当前可见的图片以及附近的图片（当前索引 ± 范围）
+    function cleanupPendingLoads(visibleIndices: Set<number>, keepRange: number = 10) {
         const toRemove: number[] = [];
         
+        // 计算应该保留的索引范围
+        const keepIndices = new Set<number>(visibleIndices);
+        visibleIndices.forEach(index => {
+            for (let i = Math.max(0, index - keepRange); i <= index + keepRange; i++) {
+                keepIndices.add(i);
+            }
+        });
+        
         pendingLoads.value.forEach(index => {
-            if (!visibleIndices.has(index)) {
+            if (!keepIndices.has(index)) {
                 toRemove.push(index);
             }
         });

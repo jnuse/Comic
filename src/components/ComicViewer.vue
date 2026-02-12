@@ -261,8 +261,9 @@ function setupIntersectionObserver() {
             }
         });
 
+        // 清理待加载队列，但保留可见图片附近的范围
         if (visibleIndices.size > 0) {
-            imageLoader.cleanupPendingLoads(visibleIndices);
+            imageLoader.cleanupPendingLoads(visibleIndices, props.preloadCount);
         }
 
         const newIndex = scrollManager.updateCurrentImageIndex();
