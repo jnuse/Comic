@@ -238,15 +238,14 @@ function setupIntersectionObserver() {
     };
 
     const debouncedHandler = useDebounceFn((entries: IntersectionObserverEntry[]) => {
-        const visibleIndices = new Set<number>();
-        
         entries.forEach(entry => {
             const index = Number(entry.target.getAttribute('data-index'));
 
             if (entry.isIntersecting) {
-                visibleIndices.add(index);
+                // 进入预加载范围，触发加载
                 imageLoader.loadImage(index, props.images.length);
             } else {
+                // 离开预加载范围，检查是否需要释放内存
                 const rect = entry.boundingClientRect;
                 const containerRect = entry.rootBounds;
                 if (!containerRect) return;
@@ -260,11 +259,6 @@ function setupIntersectionObserver() {
                 }
             }
         });
-
-        // 清理待加载队列，但保留可见图片附近的范围
-        if (visibleIndices.size > 0) {
-            imageLoader.cleanupPendingLoads(visibleIndices, props.preloadCount);
-        }
 
         const newIndex = scrollManager.updateCurrentImageIndex();
         if (newIndex !== null && newIndex !== undefined) {
