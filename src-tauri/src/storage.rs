@@ -112,16 +112,28 @@ pub struct AppData {
     pub last_opened_path: Option<String>,
 }
 
-/// 获取数据目录
+/// 获取数据目录（程序同目录）
 fn get_data_dir(app: &AppHandle) -> PathBuf {
     app.path()
+        .resource_dir()
+        .expect("无法获取程序目录")
+}
+
+/// 旧版本数据目录（app_data_dir）
+fn get_legacy_data_dir(app: &AppHandle) -> PathBuf {
+    app.path()
         .app_data_dir()
-        .expect("无法获取应用数据目录")
+        .expect("无法获取旧版应用数据目录")
 }
 
 /// 获取数据文件路径
 fn get_data_file_path(app: &AppHandle) -> PathBuf {
     get_data_dir(app).join("comic_data.json")
+}
+
+/// 获取旧版数据文件路径
+fn get_legacy_data_file_path(app: &AppHandle) -> PathBuf {
+    get_legacy_data_dir(app).join("comic_data.json")
 }
 
 /// 确保数据目录存在
@@ -142,11 +154,30 @@ pub fn load_app_data(app: &AppHandle, cache: &AppDataCache) -> Result<AppData, S
     }
 
     let file_path = get_data_file_path(app);
+    let legacy_file_path = get_legacy_data_file_path(app);
+
     let data = if file_path.exists() {
+        // 新目录存在，直接读取
         let content = fs::read_to_string(&file_path)
             .map_err(|e| format!("无法读取数据文件: {}", e))?;
         serde_json::from_str(&content).map_err(|e| format!("无法解析数据: {}", e))?
+    } else if legacy_file_path.exists() {
+        // 旧目录存在，迁移数据
+        let content = fs::read_to_string(&legacy_file_path)
+            .map_err(|e| format!("无法读取旧版数据文件: {}", e))?;
+        let data: AppData = serde_json::from_str(&content).map_err(|e| format!("无法解析旧版数据: {}", e))?;
+        
+        // 保存到新目录
+        save_app_data(app, cache, &data)?;
+        
+        // 删除旧数据文件
+        if let Err(e) = fs::remove_file(&legacy_file_path) {
+            eprintln!("警告：无法删除旧数据文件: {}", e);
+        }
+        
+        data
     } else {
+        // 都不存在，返回默认值
         AppData::default()
     };
 
