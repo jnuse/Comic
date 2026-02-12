@@ -180,38 +180,30 @@ export const useComicStore = defineStore("comic", () => {
 
   // 加载图片（使用 Blob URL 优化内存）
   async function loadImage(index: number): Promise<string> {
-    console.log(`[comic.store] loadImage 调用 - index: ${index}`);
-    
     if (!currentComic.value) {
-      console.error(`[comic.store] 没有打开的漫画`);
       throw new Error("没有打开的漫画");
     }
 
     const image = currentComic.value.images[index];
     if (!image) {
-      console.error(`[comic.store] 图片索引越界: ${index}`);
       throw new Error(`图片索引越界: ${index}`);
     }
 
     // 如果已经加载过，直接返回
     if (image.data) {
-      console.log(`[comic.store] 图片 ${index} 已缓存，直接返回: ${image.data.substring(0, 30)}...`);
       return image.data;
     }
 
     // 如果正在加载中，等待加载完成
     if (imageLoadingStates.value[index]) {
-      console.log(`[comic.store] 图片 ${index} 正在加载中，等待完成...`);
       // 轮询等待加载完成
       return new Promise((resolve, reject) => {
         const checkInterval = setInterval(() => {
           if (!imageLoadingStates.value[index]) {
             clearInterval(checkInterval);
             if (image.data) {
-              console.log(`[comic.store] 图片 ${index} 等待完成，返回: ${image.data.substring(0, 30)}...`);
               resolve(image.data);
             } else {
-              console.error(`[comic.store] 图片 ${index} 等待后仍无数据`);
               reject(new Error(`图片 ${index} 加载失败`));
             }
           }
@@ -220,48 +212,39 @@ export const useComicStore = defineStore("comic", () => {
         // 超时保护（10秒）
         setTimeout(() => {
           clearInterval(checkInterval);
-          console.error(`[comic.store] 图片 ${index} 等待超时`);
           reject(new Error(`图片 ${index} 加载超时`));
         }, 10000);
       });
     }
 
-    console.log(`[comic.store] 开始加载图片 ${index}，路径: ${image.path}`);
     imageLoadingStates.value[index] = true;  // 标记为加载中
 
     try {
       let blobUrl: string;
 
       if (currentComic.value.isZip) {
-        console.log(`[comic.store] 从 ZIP 读取图片 ${index}`);
         // 从 ZIP 读取二进制数据
         const bytes = await invoke<number[]>("cmd_read_zip_image_bytes", {
           zipPath: currentComic.value.path,
           imagePath: image.path,
         });
-        console.log(`[comic.store] ZIP 图片 ${index} 读取完成，字节数: ${bytes.length}`);
         
         // 创建 Blob 和 URL
         const blob = new Blob([new Uint8Array(bytes)], { type: getMimeType(image.path) });
         blobUrl = URL.createObjectURL(blob);
-        console.log(`[comic.store] ZIP 图片 ${index} Blob URL 创建: ${blobUrl}`);
       } else {
-        console.log(`[comic.store] 从文件读取图片 ${index}`);
         // 从文件读取二进制数据
         const bytes = await invoke<number[]>("cmd_read_image_bytes", {
           path: image.path,
         });
-        console.log(`[comic.store] 文件图片 ${index} 读取完成，字节数: ${bytes.length}`);
         
         // 创建 Blob 和 URL
         const blob = new Blob([new Uint8Array(bytes)], { type: getMimeType(image.path) });
         blobUrl = URL.createObjectURL(blob);
-        console.log(`[comic.store] 文件图片 ${index} Blob URL 创建: ${blobUrl}`);
       }
 
       // 再次检查是否已被取消（防止竞态条件）
       if (!imageLoadingStates.value[index]) {
-        console.warn(`[comic.store] 图片 ${index} 加载完成后发现已被取消，释放 Blob URL`);
         // 已被取消，释放刚创建的 Blob URL
         URL.revokeObjectURL(blobUrl);
         throw new Error(`图片 ${index} 加载已取消`);
@@ -269,15 +252,12 @@ export const useComicStore = defineStore("comic", () => {
 
       // 缓存 Blob URL
       currentComic.value.images[index].data = blobUrl;
-      console.log(`[comic.store] 图片 ${index} 缓存成功: ${blobUrl}`);
 
       return blobUrl;
     } catch (e) {
-      console.error(`[comic.store] 图片 ${index} 加载失败:`, e);
       throw new Error(`加载图片失败: ${e}`);
     } finally {
       delete imageLoadingStates.value[index];  // 清除加载状态
-      console.log(`[comic.store] 图片 ${index} 加载流程结束`);
     }
   }
 
@@ -331,29 +311,22 @@ export const useComicStore = defineStore("comic", () => {
 
   // 释放指定图片的缓存数据（包括释放 Blob URL）
   function evictImage(index: number) {
-    console.log(`[comic.store] evictImage 调用 - index: ${index}`);
-    
     if (!currentComic.value) {
-      console.log(`[comic.store] 没有打开的漫画，跳过 evict`);
       return;
     }
     
     // 如果正在加载，取消加载
     if (imageLoadingStates.value[index]) {
-      console.warn(`[comic.store] 取消正在加载的图片 ${index}`);
       delete imageLoadingStates.value[index];
     }
     
     const image = currentComic.value.images[index];
     if (image && image.data) {
-      console.log(`[comic.store] 释放图片 ${index} 的 Blob URL: ${image.data.substring(0, 30)}...`);
       // 如果是 Blob URL，需要释放
       if (image.data.startsWith('blob:')) {
         URL.revokeObjectURL(image.data);
       }
       image.data = undefined;
-    } else {
-      console.log(`[comic.store] 图片 ${index} 没有缓存数据，无需释放`);
     }
   }
 

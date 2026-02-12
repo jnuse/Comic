@@ -1,13 +1,13 @@
 <template>
     <div ref="wrapperRef" class="image-wrapper" :data-index="index">
-        <img
-            v-if="imageSrc"
-            :src="imageSrc"
-            :alt="image.name"
+        <img 
+            v-if="imageSrc" 
+            :src="imageSrc" 
+            :alt="image.name" 
             class="comic-image"
             :style="aspectRatioStyle"
-            @load="handleLoad"
-            @error="handleError"
+            @load="handleLoad" 
+            @error="handleError" 
         />
         <div v-else class="image-placeholder" :style="aspectRatioStyle">
             <span>{{ index + 1 }} / {{ totalImages }}</span>
@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import type { ImageInfo } from '../types';
 
 const props = defineProps<{
@@ -47,20 +47,12 @@ defineExpose({
     $el: wrapperRef
 });
 
-// 监听 imageSrc 变化
-watch(() => props.imageSrc, (newSrc, oldSrc) => {
-    if (newSrc !== oldSrc) {
-        console.log(`[ComicImage] 图片 ${props.index} src 变化: ${oldSrc?.substring(0, 30)} -> ${newSrc?.substring(0, 30)}`);
-    }
-});
-
 function handleLoad() {
-    console.log(`[ComicImage] 图片 ${props.index} 加载成功`);
     emit('load', props.index);
 }
 
 function handleError() {
-    console.error(`[ComicImage] 图片 ${props.index} 加载失败，src: ${props.imageSrc}`);
+    console.error(`图片 ${props.index} 加载失败`);
     emit('error', props.index);
 }
 </script>

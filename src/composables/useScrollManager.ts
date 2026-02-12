@@ -51,25 +51,20 @@ export function useScrollManager(comicPath: string) {
         return null;
     }
     
-    // 防抖的保存进度
+    // 防抖保存进度
     const debouncedSaveProgress = useDebounceFn((zoomMode: ZoomMode, customZoom: number) => {
-        progressStore.saveProgress(
-            comicPath,
-            currentImageIndex.value,
-            scrollPosition.value,
-            zoomMode,
-            customZoom
-        );
-    }, 2000);
+        progressStore.saveProgress(comicPath, currentImageIndex.value, scrollPosition.value, zoomMode, customZoom);
+    }, 500);
     
     // 处理滚动
     function handleScroll(zoomMode: ZoomMode, customZoom: number) {
         if (!viewerRef.value) return;
         scrollPosition.value = viewerRef.value.scrollTop;
+        updateCurrentImageIndex();
         debouncedSaveProgress(zoomMode, customZoom);
     }
     
-    // 跳转到指定图片
+    // 滚动到指定图片
     async function scrollToImage(index: number) {
         await nextTick();
         const el = imageRefs.value.get(index);
@@ -78,7 +73,7 @@ export function useScrollManager(comicPath: string) {
         }
     }
     
-    // 跳转到指定滚动位置
+    // 滚动到指定位置
     async function scrollToPosition(position: number) {
         await nextTick();
         if (viewerRef.value) {
@@ -95,20 +90,12 @@ export function useScrollManager(comicPath: string) {
             // 先加载目标图片
             await onLoadImage(progress.lastImageIndex);
             
-            // 然后滚动到位置
+            // 等待 DOM 更新后滚动
             await nextTick();
-            if (progress.scrollPosition > 0) {
-                await scrollToPosition(progress.scrollPosition);
-            } else {
-                await scrollToImage(progress.lastImageIndex);
-            }
+            await scrollToPosition(progress.scrollPosition);
             
-            return {
-                zoomMode: progress.zoomMode,
-                customZoom: progress.customZoom
-            };
+            return { zoomMode: progress.zoomMode, customZoom: progress.customZoom };
         }
-        
         return null;
     }
     
@@ -131,9 +118,7 @@ export function useScrollManager(comicPath: string) {
         imageRefs.value.clear();
         currentImageIndex.value = 0;
         scrollPosition.value = 0;
-        if (viewerRef.value) {
-            viewerRef.value.scrollTop = 0;
-        }
+        isZooming.value = false;
     }
     
     return {

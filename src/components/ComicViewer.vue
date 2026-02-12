@@ -19,8 +19,8 @@
                 v-for="(image, index) in images"
                 :key="image.path"
                 :ref="(el: any) => {
-                    if (el && el.$el && el.$el.value) {
-                        scrollManager.setImageRef(index, el.$el.value);
+                    if (el && el.$el) {
+                        scrollManager.setImageRef(index, el.$el);
                     } else {
                         scrollManager.setImageRef(index, null);
                     }
@@ -238,46 +238,40 @@ function setupIntersectionObserver() {
 
     const options = {
         root: viewerRef.value,
-        rootMargin: `${props.preloadCount * 800}px 0px`,
+        // 减小预加载范围以降低内存占用
+        rootMargin: `${props.preloadCount * 400}px 0px`,
         threshold: 0
     };
 
     intersectionObserver = new IntersectionObserver((entries) => {
-        console.log(`[ComicViewer] IntersectionObserver 触发，条目数: ${entries.length}`);
-        
         entries.forEach(entry => {
             const index = Number(entry.target.getAttribute('data-index'));
 
             if (entry.isIntersecting) {
-                console.log(`[ComicViewer] 图片 ${index} 进入视口，触发加载`);
                 // 进入预加载范围，触发加载
                 imageLoader.loadImage(index, props.images.length);
             } else {
-                // 离开预加载范围，检查是否需要释放内存
+                // 离开预加载范围，立即释放内存（更激进的策略）
                 const rect = entry.boundingClientRect;
                 const containerRect = entry.rootBounds;
                 if (!containerRect) return;
 
-                const farThreshold = props.preloadCount * 800 * 2;
+                // 减小阈值，更快释放内存
+                const farThreshold = props.preloadCount * 400;
                 const isFarAbove = rect.bottom < containerRect.top - farThreshold;
                 const isFarBelow = rect.top > containerRect.bottom + farThreshold;
 
                 if (isFarAbove || isFarBelow) {
-                    console.log(`[ComicViewer] 图片 ${index} 离开视口较远，触发释放 (farAbove: ${isFarAbove}, farBelow: ${isFarBelow})`);
                     imageLoader.evictImage(index);
-                } else {
-                    console.log(`[ComicViewer] 图片 ${index} 离开视口但仍在范围内，不释放`);
                 }
             }
         });
 
         const newIndex = scrollManager.updateCurrentImageIndex();
         if (newIndex !== null && newIndex !== undefined) {
-            console.log(`[ComicViewer] 当前图片索引更新为: ${newIndex}`);
             emit('image-change', newIndex);
         }
     }, options);
-
 
     scrollManager.imageRefs.value.forEach((el) => {
         intersectionObserver!.observe(el);
