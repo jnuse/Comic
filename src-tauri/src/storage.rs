@@ -153,6 +153,9 @@ pub fn load_app_data(app: &AppHandle, cache: &AppDataCache) -> Result<AppData, S
         return Ok(data.clone());
     }
 
+    // 释放锁，避免在文件操作时持有锁
+    drop(guard);
+
     let file_path = get_data_file_path(app);
     let legacy_file_path = get_legacy_data_file_path(app);
 
@@ -167,7 +170,7 @@ pub fn load_app_data(app: &AppHandle, cache: &AppDataCache) -> Result<AppData, S
             .map_err(|e| format!("无法读取旧版数据文件: {}", e))?;
         let data: AppData = serde_json::from_str(&content).map_err(|e| format!("无法解析旧版数据: {}", e))?;
         
-        // 保存到新目录
+        // 保存到新目录（此时锁已释放，不会死锁）
         save_app_data(app, cache, &data)?;
         
         // 删除旧数据文件
@@ -181,6 +184,8 @@ pub fn load_app_data(app: &AppHandle, cache: &AppDataCache) -> Result<AppData, S
         AppData::default()
     };
 
+    // 重新获取锁并更新缓存
+    let mut guard = cache.0.lock().map_err(|e| format!("锁获取失败: {}", e))?;
     *guard = Some(data.clone());
     Ok(data)
 }
