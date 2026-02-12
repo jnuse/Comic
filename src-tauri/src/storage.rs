@@ -155,7 +155,7 @@ fn ensure_data_dir(app: &AppHandle) -> Result<(), String> {
 
 /// 加载应用数据（优先从缓存读取）
 pub fn load_app_data(app: &AppHandle, cache: &AppDataCache) -> Result<AppData, String> {
-    let mut guard = cache.0.lock().map_err(|e| format!("锁获取失败: {}", e))?;
+    let guard = cache.0.lock().map_err(|e| format!("锁获取失败: {}", e))?;
 
     if let Some(data) = guard.as_ref() {
         return Ok(data.clone());
