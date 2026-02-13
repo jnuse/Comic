@@ -34,25 +34,29 @@ pub fn read_image_as_base64(path: &str) -> Result<String, String> {
 }
 
 /// 读取图片文件并返回二进制数据（用于 Blob URL）
+/// 使用 BufReader 优化大文件读取性能
 pub fn read_image_as_bytes(path: &str) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    
     let path_obj = Path::new(path);
     
     if !path_obj.exists() {
         return Err(format!("图片不存在: {}", path));
     }
 
-    fs::read(path).map_err(|e| format!("无法读取图片: {}", e))
-}
-
-/// 批量读取图片
-pub fn read_images_batch(paths: Vec<String>) -> Vec<(String, Result<String, String>)> {
-    paths
-        .into_iter()
-        .map(|path| {
-            let result = read_image_as_base64(&path);
-            (path, result)
-        })
-        .collect()
+    // 获取文件大小以预分配 Vec 容量
+    let metadata = fs::metadata(path).map_err(|e| format!("无法获取文件信息: {}", e))?;
+    let file_size = metadata.len() as usize;
+    
+    // 使用 BufReader 提高读取性能
+    let file = fs::File::open(path).map_err(|e| format!("无法打开文件: {}", e))?;
+    let mut reader = std::io::BufReader::with_capacity(8192 * 16, file); // 128KB 缓冲区
+    
+    // 预分配 Vec 容量避免多次重新分配
+    let mut buffer = Vec::with_capacity(file_size);
+    reader.read_to_end(&mut buffer).map_err(|e| format!("无法读取图片: {}", e))?;
+    
+    Ok(buffer)
 }
 
 /// 获取 MIME 类型
@@ -67,24 +71,6 @@ fn get_mime_type(path: &str) -> &'static str {
         Some("tiff") | Some("tif") => "image/tiff",
         _ => "application/octet-stream",
     }
-}
-
-/// 生成缩略图
-pub fn generate_thumbnail(path: &str, max_width: u32, max_height: u32) -> Result<String, String> {
-    let img = image::open(path).map_err(|e| format!("无法打开图片: {}", e))?;
-    
-    let thumbnail = img.thumbnail(max_width, max_height);
-    
-    let mut buffer = Vec::new();
-    thumbnail
-        .write_to(
-            &mut std::io::Cursor::new(&mut buffer),
-            image::ImageFormat::Jpeg,
-        )
-        .map_err(|e| format!("无法生成缩略图: {}", e))?;
-    
-    let base64_data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &buffer);
-    Ok(format!("data:image/jpeg;base64,{}", base64_data))
 }
 
 /// 分块读取大图片（用于超长条漫）

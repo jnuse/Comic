@@ -154,40 +154,45 @@ pub fn read_zip_image_bytes(zip_path: &str, image_path: &str, cache: &ZipCache) 
     Ok(buffer)
 }
 
-/// 批量读取 ZIP 中的图片
-pub fn read_zip_images_batch(
-    zip_path: &str,
-    image_paths: Vec<String>,
-) -> Result<Vec<(String, String)>, String> {
+/// 从 ZIP 文件中获取图片尺寸
+pub fn get_zip_image_dimensions(zip_path: &str, image_path: &str, cache: &ZipCache) -> Result<(u32, u32), String> {
     let path = Path::new(zip_path);
-    
+
     if !path.exists() {
         return Err(format!("ZIP 文件不存在: {}", zip_path));
     }
 
-    let file = File::open(path).map_err(|e| format!("无法打开文件: {}", e))?;
-    let mut archive = ZipArchive::new(file).map_err(|e| format!("无法读取 ZIP: {}", e))?;
+    let mut guard = cache.0.lock().map_err(|e| format!("锁获取失败: {}", e))?;
 
-    let mut results: Vec<(String, String)> = Vec::new();
-
-    for image_path in image_paths {
-        if let Ok(mut zip_file) = archive.by_name(&image_path) {
-            let mut buffer = Vec::new();
-            if zip_file.read_to_end(&mut buffer).is_ok() {
-                let mime_type = get_mime_type(&image_path);
-                let base64_data = base64::Engine::encode(
-                    &base64::engine::general_purpose::STANDARD,
-                    &buffer,
-                );
-                results.push((
-                    image_path,
-                    format!("data:{};base64,{}", mime_type, base64_data),
-                ));
-            }
-        }
+    // 检查 LRU 缓存中是否存在，不存在则打开并插入
+    if !guard.contains(&zip_path.to_string()) {
+        let file = File::open(path).map_err(|e| format!("无法打开文件: {}", e))?;
+        let archive = ZipArchive::new(BufReader::new(file))
+            .map_err(|e| format!("无法读取 ZIP: {}", e))?;
+        guard.put(zip_path.to_string(), archive);
     }
 
-    Ok(results)
+    // 从 LRU 缓存获取
+    let archive = guard.get_mut(&zip_path.to_string()).unwrap();
+
+    let mut zip_file = archive
+        .by_name(image_path)
+        .map_err(|e| format!("无法找到图片: {}", e))?;
+
+    let mut buffer = Vec::new();
+    zip_file
+        .read_to_end(&mut buffer)
+        .map_err(|e| format!("无法读取图片数据: {}", e))?;
+
+    // 使用 image crate 从内存中读取图片尺寸
+    let reader = image::ImageReader::new(std::io::Cursor::new(buffer))
+        .with_guessed_format()
+        .map_err(|e| format!("无法识别图片格式: {}", e))?;
+    
+    let dimensions = reader.into_dimensions()
+        .map_err(|e| format!("无法获取图片尺寸: {}", e))?;
+
+    Ok(dimensions)
 }
 
 /// 获取 MIME 类型

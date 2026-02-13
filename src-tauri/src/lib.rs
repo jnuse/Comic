@@ -12,7 +12,7 @@ use storage::{
     save_settings, get_settings,
     save_opened_directory, remove_opened_directory, get_opened_directories,
 };
-use zip_handler::{ZipCache, ZipImageInfo, get_zip_image_list, read_zip_image, read_zip_image_bytes};
+use zip_handler::{ZipCache, ZipImageInfo, get_zip_image_list, read_zip_image, read_zip_image_bytes, get_zip_image_dimensions};
 use tauri::AppHandle;
 
 // ============== 文件系统命令 ==============
@@ -52,14 +52,23 @@ fn cmd_read_image(path: String) -> Result<String, String> {
 }
 
 /// 读取图片为二进制数据（用于 Blob URL）
+/// 使用 async 让文件读取在后台线程执行，不阻塞主线程
 #[tauri::command]
-fn cmd_read_image_bytes(path: String) -> Result<Vec<u8>, String> {
-    read_image_as_bytes(&path)
+async fn cmd_read_image_bytes(path: String) -> Result<Vec<u8>, String> {
+    // 在独立的线程池中执行文件读取，避免阻塞主线程
+    tokio::task::spawn_blocking(move || {
+        read_image_as_bytes(&path)
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 /// 读取 ZIP 中的图片为二进制数据（用于 Blob URL）
+/// 使用 async 让文件读取在后台线程执行，不阻塞主线程
 #[tauri::command]
-fn cmd_read_zip_image_bytes(zip_path: String, image_path: String, cache: tauri::State<ZipCache>) -> Result<Vec<u8>, String> {
+async fn cmd_read_zip_image_bytes(zip_path: String, image_path: String, cache: tauri::State<'_, ZipCache>) -> Result<Vec<u8>, String> {
+    // 由于 cache 有生命周期限制，我们需要在这里直接调用
+    // Tauri 的 async 命令本身就会在后台执行
     read_zip_image_bytes(&zip_path, &image_path, &cache)
 }
 
@@ -67,6 +76,12 @@ fn cmd_read_zip_image_bytes(zip_path: String, image_path: String, cache: tauri::
 #[tauri::command]
 fn cmd_get_image_dimensions(path: String) -> Result<(u32, u32), String> {
     get_image_dimensions(&path)
+}
+
+/// 获取 ZIP 中图片的尺寸
+#[tauri::command]
+fn cmd_get_zip_image_dimensions(zip_path: String, image_path: String, cache: tauri::State<ZipCache>) -> Result<(u32, u32), String> {
+    get_zip_image_dimensions(&zip_path, &image_path, &cache)
 }
 
 /// 分块读取图片
@@ -165,6 +180,7 @@ pub fn run() {
             cmd_get_zip_images,
             cmd_read_zip_image,
             cmd_read_zip_image_bytes,
+            cmd_get_zip_image_dimensions,
             // 图片
             cmd_read_image,
             cmd_read_image_bytes,

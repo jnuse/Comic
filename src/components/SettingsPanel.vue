@@ -81,10 +81,11 @@
             <div class="setting-group">
                 <label class="setting-label">预加载图片数量</label>
                 <div class="slider-group">
-                    <input type="range" min="0" max="10" :value="settings.preloadCount" @input="handlePreloadChange"
+                    <input type="range" min="0" max="50" :value="settings.preloadCount" @input="handlePreloadChange"
                         class="preload-slider" />
                     <span class="preload-value">{{ settings.preloadCount }}</span>
                 </div>
+                <p class="setting-hint">向上向下各预加载 N 张图片（共 2N+1 张）</p>
             </div>
         </div>
     </div>

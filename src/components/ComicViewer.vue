@@ -43,14 +43,14 @@
             :is-bookmarked="isCurrentBookmarked"
             :zoom-level="customZoom"
             :is-fullscreen="isFullscreen"
-            @prev-page="scrollManager.goToPrevPage()"
-            @next-page="scrollManager.goToNextPage(images.length)"
+            @prev-page="handlePrevPage"
+            @next-page="handleNextPage"
             @toggle-bookmark="toggleCurrentBookmark"
             @zoom-in="$emit('zoom-in')"
             @zoom-out="$emit('zoom-out')"
             @toggle-fullscreen="$emit('toggle-fullscreen')"
             @close="$emit('close')"
-            @jump-to-page="scrollManager.scrollToImage"
+            @jump-to-page="handleJumpToPage"
         />
 
         <!-- 进度条 -->
@@ -98,7 +98,7 @@ const scrollManager = useScrollManager(props.comicPath);
 // 状态
 const isLoading = ref(false);
 const { viewerRef } = scrollManager;
-let intersectionObserver: IntersectionObserver | null = null;
+const scrollEndTimer = ref<number | null>(null);
 
 // 监听漫画切换
 watch(
@@ -108,31 +108,43 @@ watch(
             // 清理旧状态
             imageLoader.clearAll();
             scrollManager.clear();
-            
-            if (intersectionObserver) {
-                intersectionObserver.disconnect();
-                intersectionObserver = null;
-            }
 
-            // 加载新漫画
+            // 加载新漫画（后台异步加载，不阻塞）
             isLoading.value = true;
-            const initialCount = Math.min(3, props.images.length);
-            await Promise.all(
-                Array.from({ length: initialCount }, (_, i) => 
-                    imageLoader.loadImage(i, props.images.length)
-                )
-            );
+            imageLoader.preloadRange(0, props.preloadCount, props.images.length);
+            
+            // 等待第一张图片加载完成后再隐藏加载提示
+            await new Promise(resolve => {
+                const checkInterval = setInterval(() => {
+                    if (imageLoader.loadedImages.value[0]) {
+                        clearInterval(checkInterval);
+                        resolve(null);
+                    }
+                }, 50);
+                
+                // 超时保护
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    resolve(null);
+                }, 5000);
+            });
+            
             isLoading.value = false;
-
-            // 重新设置 IntersectionObserver
-            await nextTick();
-            setupIntersectionObserver();
 
             // 恢复新漫画的进度
             await restoreProgress();
         }
     }
 );
+
+// 触发懒加载的函数
+function triggerLazyLoad() {
+    const currentIndex = scrollManager.currentImageIndex.value;
+    if (currentIndex !== null && currentIndex !== undefined && !scrollManager.isZooming.value) {
+        console.log('[懒加载触发] 滚动结束，当前图片:', currentIndex);
+        imageLoader.preloadRange(currentIndex, props.preloadCount, props.images.length);
+    }
+}
 
 // 监听缩放变化
 watch(
@@ -230,56 +242,51 @@ async function toggleCurrentBookmark() {
     );
 }
 
-// 设置 IntersectionObserver
-function setupIntersectionObserver() {
-    if (intersectionObserver) {
-        intersectionObserver.disconnect();
-    }
-
-    const options = {
-        root: viewerRef.value,
-        // 减小预加载范围以降低内存占用
-        rootMargin: `${props.preloadCount * 400}px 0px`,
-        threshold: 0
-    };
-
-    intersectionObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            const index = Number(entry.target.getAttribute('data-index'));
-
-            if (entry.isIntersecting) {
-                // 进入预加载范围，触发加载
-                imageLoader.loadImage(index, props.images.length);
-            } else {
-                // 离开预加载范围，立即释放内存（更激进的策略）
-                const rect = entry.boundingClientRect;
-                const containerRect = entry.rootBounds;
-                if (!containerRect) return;
-
-                // 减小阈值，更快释放内存
-                const farThreshold = props.preloadCount * 400;
-                const isFarAbove = rect.bottom < containerRect.top - farThreshold;
-                const isFarBelow = rect.top > containerRect.bottom + farThreshold;
-
-                if (isFarAbove || isFarBelow) {
-                    imageLoader.evictImage(index);
-                }
-            }
-        });
-
-        const newIndex = scrollManager.updateCurrentImageIndex();
-        if (newIndex !== null && newIndex !== undefined) {
-            emit('image-change', newIndex);
-        }
-    }, options);
-
-    scrollManager.imageRefs.value.forEach((el) => {
-        intersectionObserver!.observe(el);
+// 上一页
+function handlePrevPage() {
+    console.log('[懒加载触发] 上一页');
+    scrollManager.goToPrevPage(() => {
+        triggerLazyLoad();
     });
+}
+
+// 下一页
+function handleNextPage() {
+    console.log('[懒加载触发] 下一页');
+    scrollManager.goToNextPage(props.images.length, () => {
+        triggerLazyLoad();
+    });
+}
+
+// 跳转到指定页
+async function handleJumpToPage(index: number) {
+    console.log('[懒加载触发] 跳转到页面', index);
+    await scrollManager.scrollToImage(index);
+    // 跳转后立即触发懒加载
+    setTimeout(() => {
+        triggerLazyLoad();
+    }, 100);
 }
 
 function handleScroll() {
     scrollManager.handleScroll(props.zoomMode, props.customZoom);
+    
+    // 更新当前图片索引
+    const newIndex = scrollManager.updateCurrentImageIndex();
+    if (newIndex !== null && newIndex !== undefined) {
+        emit('image-change', newIndex);
+    }
+    
+    // 清除之前的定时器
+    if (scrollEndTimer.value !== null) {
+        clearTimeout(scrollEndTimer.value);
+    }
+    
+    // 设置新的定时器，滚动停止 300ms 后触发懒加载
+    scrollEndTimer.value = window.setTimeout(() => {
+        triggerLazyLoad();
+        scrollEndTimer.value = null;
+    }, 300);
 }
 
 function handleImageLoad(_index: number) {
@@ -292,7 +299,26 @@ function handleImageError(index: number) {
 
 async function restoreProgress() {
     const result = await scrollManager.restoreProgress(
-        (index) => imageLoader.loadImage(index, props.images.length)
+        async (index) => {
+            // 触发预加载（后台异步执行）
+            imageLoader.preloadRange(index, props.preloadCount, props.images.length);
+            
+            // 等待目标图片加载完成
+            await new Promise(resolve => {
+                const checkInterval = setInterval(() => {
+                    if (imageLoader.loadedImages.value[index]) {
+                        clearInterval(checkInterval);
+                        resolve(null);
+                    }
+                }, 50);
+                
+                // 超时保护
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    resolve(null);
+                }, 5000);
+            });
+        }
     );
     
     if (result?.zoomMode && result.customZoom !== undefined) {
@@ -310,20 +336,20 @@ function handleKeyDown(event: KeyboardEvent) {
         case 'ArrowUp':
         case 'PageUp':
             event.preventDefault();
-            scrollManager.goToPrevPage();
+            handlePrevPage();
             break;
         case 'ArrowDown':
         case 'PageDown':
             event.preventDefault();
-            scrollManager.goToNextPage(props.images.length);
+            handleNextPage();
             break;
         case 'Home':
             event.preventDefault();
-            scrollManager.scrollToImage(0);
+            handleJumpToPage(0);
             break;
         case 'End':
             event.preventDefault();
-            scrollManager.scrollToImage(props.images.length - 1);
+            handleJumpToPage(props.images.length - 1);
             break;
     }
 }
@@ -332,26 +358,32 @@ function handleKeyDown(event: KeyboardEvent) {
 onMounted(async () => {
     isLoading.value = true;
 
-    const initialCount = Math.min(3, props.images.length);
-    await Promise.all(
-        Array.from({ length: initialCount }, (_, i) => 
-            imageLoader.loadImage(i, props.images.length)
-        )
-    );
+    // 触发预加载（后台异步执行）
+    imageLoader.preloadRange(0, props.preloadCount, props.images.length);
+    
+    // 等待第一张图片加载完成
+    await new Promise(resolve => {
+        const checkInterval = setInterval(() => {
+            if (imageLoader.loadedImages.value[0]) {
+                clearInterval(checkInterval);
+                resolve(null);
+            }
+        }, 50);
+        
+        // 超时保护
+        setTimeout(() => {
+            clearInterval(checkInterval);
+            resolve(null);
+        }, 5000);
+    });
 
     isLoading.value = false;
     await restoreProgress();
     await nextTick();
-    setupIntersectionObserver();
     window.addEventListener('keydown', handleKeyDown);
 });
 
 onUnmounted(() => {
-    if (intersectionObserver) {
-        intersectionObserver.disconnect();
-        intersectionObserver = null;
-    }
-    
     window.removeEventListener('keydown', handleKeyDown);
     imageLoader.clearAll();
 });

@@ -100,16 +100,28 @@ export function useScrollManager(comicPath: string) {
     }
     
     // 上一页
-    function goToPrevPage() {
+    function goToPrevPage(onPageChange?: () => void) {
         if (currentImageIndex.value > 0) {
             scrollToImage(currentImageIndex.value - 1);
+            // 滚动完成后触发回调
+            if (onPageChange) {
+                setTimeout(() => {
+                    onPageChange();
+                }, 100);
+            }
         }
     }
     
     // 下一页
-    function goToNextPage(totalImages: number) {
+    function goToNextPage(totalImages: number, onPageChange?: () => void) {
         if (currentImageIndex.value < totalImages - 1) {
             scrollToImage(currentImageIndex.value + 1);
+            // 滚动完成后触发回调
+            if (onPageChange) {
+                setTimeout(() => {
+                    onPageChange();
+                }, 100);
+            }
         }
     }
     

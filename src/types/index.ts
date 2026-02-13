@@ -116,7 +116,7 @@ export const defaultSettings: Settings = {
   theme: "system",
   zoomMode: "fit-width",
   customZoom: 100,
-  preloadCount: 3,
+  preloadCount: 10,
   readerMode: "embedded",
   aspectRatio: "auto",
   customAspectWidth: 3,

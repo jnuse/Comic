@@ -1,15 +1,17 @@
 <template>
     <div ref="wrapperRef" class="image-wrapper" :data-index="index">
-        <img 
-            v-if="imageSrc" 
-            :src="imageSrc" 
-            :alt="image.name" 
+        <img
+            v-if="imageSrc"
+            :src="imageSrc"
+            :alt="image.name"
             class="comic-image"
-            :style="aspectRatioStyle"
-            @load="handleLoad" 
-            @error="handleError" 
+            :style="imageStyle"
+            decoding="async"
+            loading="lazy"
+            @load="handleLoad"
+            @error="handleError"
         />
-        <div v-else class="image-placeholder" :style="aspectRatioStyle">
+        <div v-else class="image-placeholder" :style="placeholderStyle">
             <span>{{ index + 1 }} / {{ totalImages }}</span>
             <span class="image-name">{{ image.name }}</span>
         </div>
@@ -22,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import type { ImageInfo } from '../types';
 
 const props = defineProps<{
@@ -33,6 +35,25 @@ const props = defineProps<{
     isBookmarked: boolean;
     aspectRatioStyle: Record<string, any>;
 }>();
+
+// 计算图片样式（合并用户设置的比例和实际图片尺寸）
+const imageStyle = computed(() => {
+    return props.aspectRatioStyle;
+});
+
+// 计算占位符样式（使用实际图片尺寸预留空间）
+const placeholderStyle = computed(() => {
+    const style: Record<string, any> = { ...props.aspectRatioStyle };
+    
+    // 如果有图片尺寸信息，使用实际尺寸设置 aspect-ratio
+    if (props.image.width && props.image.height) {
+        style.aspectRatio = `${props.image.width} / ${props.image.height}`;
+        style.width = '100%';
+        style.minHeight = 'auto'; // 移除固定最小高度
+    }
+    
+    return style;
+});
 
 const emit = defineEmits<{
     (e: 'load', index: number): void;
@@ -48,6 +69,7 @@ defineExpose({
 });
 
 function handleLoad() {
+    console.log(`[性能-渲染] 图片 ${props.index} 渲染完成`);
     emit('load', props.index);
 }
 

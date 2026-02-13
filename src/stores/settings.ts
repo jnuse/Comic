@@ -74,7 +74,7 @@ export const useSettingsStore = defineStore("settings", () => {
 
   // 设置预加载数量
   function setPreloadCount(count: number) {
-    settings.value.preloadCount = Math.max(0, Math.min(10, count));
+    settings.value.preloadCount = Math.max(0, Math.min(50, count));
     saveSettings();
   }
 
