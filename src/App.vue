@@ -158,7 +158,12 @@ onMounted(async () => {
         </button>
 
         <div class="file-tree-container">
-          <FileTree :trees="fileTrees" @select="handleNodeSelect" @remove="handleRemoveTree" />
+          <FileTree
+            :trees="fileTrees"
+            :current-comic-path="currentComic?.path"
+            @select="handleNodeSelect"
+            @remove="handleRemoveTree"
+          />
         </div>
       </aside>
 

@@ -7,6 +7,7 @@
                 'is-comic': node.isComic,
                 'is-zip': node.isZip,
                 'is-root': isRoot,
+                'is-active': isActive,
             }"
             @click="handleClick"
             @contextmenu.prevent="handleContextMenu">
@@ -50,6 +51,7 @@
                 :key="child.path"
                 :node="child"
                 :expanded-paths="expandedPaths"
+                :current-comic-path="currentComicPath"
                 :is-root="false"
                 @toggle="$emit('toggle', $event)"
                 @select="$emit('select', $event)"
@@ -65,6 +67,7 @@ import type { FileNode } from '../types';
 const props = defineProps<{
     node: FileNode;
     expandedPaths: Set<string>;
+    currentComicPath?: string;
     isRoot?: boolean;
 }>();
 
@@ -75,6 +78,7 @@ const emit = defineEmits<{
 }>();
 
 const isExpanded = computed(() => props.expandedPaths.has(props.node.path));
+const isActive = computed(() => props.currentComicPath === props.node.path);
 const showContextMenu = ref(false);
 const contextMenuStyle = ref({});
 
@@ -146,6 +150,23 @@ onUnmounted(() => {
 
 .node-content.is-comic:hover {
     background-color: var(--primary-bg);
+}
+
+.node-content.is-active {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.1) 100%);
+    border-left: 3px solid #3b82f6;
+    padding-left: 5px;
+    color: #3b82f6;
+    font-weight: 600;
+}
+
+.node-content.is-active:hover {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0.15) 100%);
+}
+
+.node-content.is-active .image-count {
+    color: #3b82f6;
+    opacity: 0.8;
 }
 
 .node-content.is-root {

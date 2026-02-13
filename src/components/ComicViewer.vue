@@ -356,6 +356,23 @@ function handleKeyDown(event: KeyboardEvent) {
     }
 }
 
+// 鼠标滚轮缩放
+function handleWheel(event: WheelEvent) {
+    // 只有按住 Ctrl 键时才触发缩放
+    if (!event.ctrlKey) {
+        return;
+    }
+    
+    event.preventDefault();
+    
+    // deltaY < 0 表示向上滚动（放大），> 0 表示向下滚动（缩小）
+    if (event.deltaY < 0) {
+        emit('zoom-in');
+    } else {
+        emit('zoom-out');
+    }
+}
+
 // 生命周期
 onMounted(async () => {
     isLoading.value = true;
@@ -383,10 +400,21 @@ onMounted(async () => {
     await restoreProgress();
     await nextTick();
     window.addEventListener('keydown', handleKeyDown);
+    
+    // 添加滚轮事件监听
+    if (viewerRef.value) {
+        viewerRef.value.addEventListener('wheel', handleWheel, { passive: false });
+    }
 });
 
 onUnmounted(() => {
     window.removeEventListener('keydown', handleKeyDown);
+    
+    // 移除滚轮事件监听
+    if (viewerRef.value) {
+        viewerRef.value.removeEventListener('wheel', handleWheel);
+    }
+    
     imageLoader.clearAll();
 });
 

@@ -4,6 +4,7 @@
             <FileTreeNode
                 :node="rootNode"
                 :expanded-paths="expandedPaths"
+                :current-comic-path="currentComicPath"
                 :is-root="true"
                 @toggle="toggleExpand"
                 @select="handleSelect"
@@ -22,6 +23,7 @@ import FileTreeNode from './FileTreeNode.vue';
 
 const props = defineProps<{
     trees: FileNode[];
+    currentComicPath?: string;
 }>();
 
 const emit = defineEmits<{
