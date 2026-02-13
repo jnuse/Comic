@@ -31,6 +31,27 @@ const emit = defineEmits<{
 
 const expandedPaths = ref<Set<string>>(new Set(['__root__']));
 
+// 递归排序函数：文件夹优先，然后按字母排序
+function sortNodes(nodes: FileNode[]): FileNode[] {
+    return [...nodes].sort((a, b) => {
+        // 文件夹优先
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        
+        // 同类型按名称字母排序（不区分大小写）
+        return a.name.localeCompare(b.name, 'zh-CN', { sensitivity: 'base' });
+    }).map(node => {
+        // 递归排序子节点
+        if (node.children && node.children.length > 0) {
+            return {
+                ...node,
+                children: sortNodes(node.children)
+            };
+        }
+        return node;
+    });
+}
+
 // 创建虚拟根节点
 const rootNode = computed<FileNode | null>(() => {
     if (!props.trees || props.trees.length === 0) {
@@ -44,7 +65,7 @@ const rootNode = computed<FileNode | null>(() => {
         isComic: false,
         isZip: false,
         imageCount: 0,
-        children: props.trees,
+        children: sortNodes(props.trees),
     };
 });
 

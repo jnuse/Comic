@@ -27,6 +27,8 @@
 import { ref, computed } from 'vue';
 import type { ImageInfo } from '../types';
 
+const isDev = import.meta.env.DEV;
+
 const props = defineProps<{
     image: ImageInfo;
     index: number;
@@ -69,7 +71,7 @@ defineExpose({
 });
 
 function handleLoad() {
-    console.log(`[性能-渲染] 图片 ${props.index} 渲染完成`);
+    if (isDev) console.log(`[性能-渲染] 图片 ${props.index} 渲染完成`);
     emit('load', props.index);
 }
 

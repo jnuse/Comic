@@ -69,6 +69,8 @@ import { useScrollManager } from '../composables/useScrollManager';
 import ComicImage from './ComicImage.vue';
 import ComicToolbar from './ComicToolbar.vue';
 
+const isDev = import.meta.env.DEV;
+
 const props = defineProps<{
     images: ImageInfo[];
     comicPath: string;
@@ -141,7 +143,7 @@ watch(
 function triggerLazyLoad() {
     const currentIndex = scrollManager.currentImageIndex.value;
     if (currentIndex !== null && currentIndex !== undefined && !scrollManager.isZooming.value) {
-        console.log('[懒加载触发] 滚动结束，当前图片:', currentIndex);
+        if (isDev) console.log('[懒加载触发] 滚动结束，当前图片:', currentIndex);
         imageLoader.preloadRange(currentIndex, props.preloadCount, props.images.length);
     }
 }
@@ -244,7 +246,7 @@ async function toggleCurrentBookmark() {
 
 // 上一页
 function handlePrevPage() {
-    console.log('[懒加载触发] 上一页');
+    if (isDev) console.log('[懒加载触发] 上一页');
     scrollManager.goToPrevPage(() => {
         triggerLazyLoad();
     });
@@ -252,7 +254,7 @@ function handlePrevPage() {
 
 // 下一页
 function handleNextPage() {
-    console.log('[懒加载触发] 下一页');
+    if (isDev) console.log('[懒加载触发] 下一页');
     scrollManager.goToNextPage(props.images.length, () => {
         triggerLazyLoad();
     });
@@ -260,7 +262,7 @@ function handleNextPage() {
 
 // 跳转到指定页
 async function handleJumpToPage(index: number) {
-    console.log('[懒加载触发] 跳转到页面', index);
+    if (isDev) console.log('[懒加载触发] 跳转到页面', index);
     await scrollManager.scrollToImage(index);
     // 跳转后立即触发懒加载
     setTimeout(() => {

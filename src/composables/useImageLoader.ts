@@ -1,6 +1,8 @@
 import { ref } from 'vue';
 import { useComicStore } from '../stores';
 
+const isDev = import.meta.env.DEV;
+
 export function useImageLoader() {
     const comicStore = useComicStore();
     
@@ -26,14 +28,14 @@ export function useImageLoader() {
 
         loadingStates.value[index] = true;  // 标记为加载中
         
-        const startTime = performance.now();
-        console.log(`[性能] 开始加载图片 ${index}`);
+        const startTime = isDev ? performance.now() : 0;
+        if (isDev) console.log(`[性能] 开始加载图片 ${index}`);
 
         try {
-            const loadStart = performance.now();
+            const loadStart = isDev ? performance.now() : 0;
             const data = await comicStore.loadImage(index);
-            const loadEnd = performance.now();
-            console.log(`[性能] 图片 ${index} 后端加载耗时: ${(loadEnd - loadStart).toFixed(2)}ms`);
+            const loadEnd = isDev ? performance.now() : 0;
+            if (isDev) console.log(`[性能] 图片 ${index} 后端加载耗时: ${(loadEnd - loadStart).toFixed(2)}ms`);
             
             // 加载完成后检查是否已被取消（用户快速滚动离开）
             if (!loadingStates.value[index]) {
@@ -44,16 +46,18 @@ export function useImageLoader() {
                 return;
             }
             
-            const assignStart = performance.now();
+            const assignStart = isDev ? performance.now() : 0;
             loadedImages.value[index] = data;
-            const assignEnd = performance.now();
-            console.log(`[性能] 图片 ${index} 赋值耗时: ${(assignEnd - assignStart).toFixed(2)}ms`);
+            const assignEnd = isDev ? performance.now() : 0;
+            if (isDev) console.log(`[性能] 图片 ${index} 赋值耗时: ${(assignEnd - assignStart).toFixed(2)}ms`);
             
             // 加载成功，清除错误计数
             delete errorCounts.value[index];
             
-            const totalTime = performance.now() - startTime;
-            console.log(`[性能] 图片 ${index} 总耗时: ${totalTime.toFixed(2)}ms`);
+            if (isDev) {
+                const totalTime = performance.now() - startTime;
+                console.log(`[性能] 图片 ${index} 总耗时: ${totalTime.toFixed(2)}ms`);
+            }
         } catch (e) {
             console.error(`加载图片 ${index} 失败:`, e);
             // 增加错误计数
@@ -70,7 +74,7 @@ export function useImageLoader() {
             return;
         }
         
-        console.log(`[懒加载] 当前中心图片: ${centerIndex}, 预加载范围: ${Math.max(0, centerIndex - preloadCount)} - ${Math.min(totalImages - 1, centerIndex + preloadCount)}`);
+        if (isDev) console.log(`[懒加载] 当前中心图片: ${centerIndex}, 预加载范围: ${Math.max(0, centerIndex - preloadCount)} - ${Math.min(totalImages - 1, centerIndex + preloadCount)}`);
         
         lastPreloadCenter.value = centerIndex;
         
@@ -96,20 +100,20 @@ export function useImageLoader() {
             }
         }
         
-        console.log(`[懒加载] 加载队列:`, loadQueue);
+        if (isDev) console.log(`[懒加载] 加载队列:`, loadQueue);
         
         // 在后台异步加载图片，不阻塞 UI
         (async () => {
             for (const index of loadQueue) {
                 // 跳过已加载的图片
                 if (!loadedImages.value[index] && !loadingStates.value[index]) {
-                    console.log(`[懒加载] 正在加载图片 ${index}`);
+                    if (isDev) console.log(`[懒加载] 正在加载图片 ${index}`);
                     await loadImage(index, totalImages);
                     
                     // 每加载一张图片后让出控制权，避免阻塞 UI
                     await new Promise(resolve => setTimeout(resolve, 0));
                 } else {
-                    console.log(`[懒加载] 跳过已加载的图片 ${index}`);
+                    if (isDev) console.log(`[懒加载] 跳过已加载的图片 ${index}`);
                 }
             }
             
@@ -130,7 +134,7 @@ export function useImageLoader() {
             }
         });
         
-        if (indicesToEvict.length > 0) {
+        if (isDev && indicesToEvict.length > 0) {
             console.log(`[懒加载] 释放范围外的图片:`, indicesToEvict);
         }
         

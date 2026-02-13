@@ -3,6 +3,8 @@ import { ref, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import type { FileNode, ComicInfo, ImageInfo, ZipImageInfo, OpenedDirectory } from "../types";
 
+const isDev = import.meta.env.DEV;
+
 export const useComicStore = defineStore("comic", () => {
   // 状态
   const fileTrees = ref<FileNode[]>([]);  // 改为数组，支持多个根节点
@@ -119,7 +121,7 @@ export const useComicStore = defineStore("comic", () => {
       }));
 
       // 批量获取图片尺寸
-      console.log('[漫画加载] 开始获取图片尺寸...');
+      if (isDev) console.log('[漫画加载] 开始获取图片尺寸...');
       const dimensionsPromises = images.map(async (img) => {
         try {
           const [width, height] = await invoke<[number, number]>("cmd_get_image_dimensions", {
@@ -136,7 +138,7 @@ export const useComicStore = defineStore("comic", () => {
       });
       
       await Promise.all(dimensionsPromises);
-      console.log('[漫画加载] 图片尺寸获取完成');
+      if (isDev) console.log('[漫画加载] 图片尺寸获取完成');
 
       currentComic.value = {
         path,
@@ -173,7 +175,7 @@ export const useComicStore = defineStore("comic", () => {
       }));
 
       // 批量获取图片尺寸
-      console.log('[漫画加载] 开始获取 ZIP 图片尺寸...');
+      if (isDev) console.log('[漫画加载] 开始获取 ZIP 图片尺寸...');
       const dimensionsPromises = images.map(async (img) => {
         try {
           const [width, height] = await invoke<[number, number]>("cmd_get_zip_image_dimensions", {
@@ -191,7 +193,7 @@ export const useComicStore = defineStore("comic", () => {
       });
       
       await Promise.all(dimensionsPromises);
-      console.log('[漫画加载] ZIP 图片尺寸获取完成');
+      if (isDev) console.log('[漫画加载] ZIP 图片尺寸获取完成');
 
       currentComic.value = {
         path,
@@ -221,8 +223,8 @@ export const useComicStore = defineStore("comic", () => {
 
   // 加载图片（使用 Blob URL 优化内存）
   async function loadImage(index: number): Promise<string> {
-    const startTime = performance.now();
-    console.log(`[性能-Store] 开始加载图片 ${index}`);
+    const startTime = isDev ? performance.now() : 0;
+    if (isDev) console.log(`[性能-Store] 开始加载图片 ${index}`);
     
     if (!currentComic.value) {
       throw new Error("没有打开的漫画");
@@ -235,13 +237,13 @@ export const useComicStore = defineStore("comic", () => {
 
     // 如果已经加载过，直接返回
     if (image.data) {
-      console.log(`[性能-Store] 图片 ${index} 已缓存，直接返回`);
+      if (isDev) console.log(`[性能-Store] 图片 ${index} 已缓存，直接返回`);
       return image.data;
     }
 
     // 如果正在加载中，等待加载完成
     if (imageLoadingStates.value[index]) {
-      console.log(`[性能-Store] 图片 ${index} 正在加载中，等待...`);
+      if (isDev) console.log(`[性能-Store] 图片 ${index} 正在加载中，等待...`);
       // 轮询等待加载完成
       return new Promise((resolve, reject) => {
         const checkInterval = setInterval(() => {
@@ -270,35 +272,35 @@ export const useComicStore = defineStore("comic", () => {
 
       if (currentComic.value.isZip) {
         // 从 ZIP 读取二进制数据
-        const invokeStart = performance.now();
+        const invokeStart = isDev ? performance.now() : 0;
         const bytes = await invoke<number[]>("cmd_read_zip_image_bytes", {
           zipPath: currentComic.value.path,
           imagePath: image.path,
         });
-        const invokeEnd = performance.now();
-        console.log(`[性能-Store] 图片 ${index} Rust读取耗时: ${(invokeEnd - invokeStart).toFixed(2)}ms, 大小: ${(bytes.length / 1024 / 1024).toFixed(2)}MB`);
+        const invokeEnd = isDev ? performance.now() : 0;
+        if (isDev) console.log(`[性能-Store] 图片 ${index} Rust读取耗时: ${(invokeEnd - invokeStart).toFixed(2)}ms, 大小: ${(bytes.length / 1024 / 1024).toFixed(2)}MB`);
         
         // 创建 Blob 和 URL
-        const blobStart = performance.now();
+        const blobStart = isDev ? performance.now() : 0;
         const blob = new Blob([new Uint8Array(bytes)], { type: getMimeType(image.path) });
         blobUrl = URL.createObjectURL(blob);
-        const blobEnd = performance.now();
-        console.log(`[性能-Store] 图片 ${index} Blob创建耗时: ${(blobEnd - blobStart).toFixed(2)}ms`);
+        const blobEnd = isDev ? performance.now() : 0;
+        if (isDev) console.log(`[性能-Store] 图片 ${index} Blob创建耗时: ${(blobEnd - blobStart).toFixed(2)}ms`);
       } else {
         // 从文件读取二进制数据
-        const invokeStart = performance.now();
+        const invokeStart = isDev ? performance.now() : 0;
         const bytes = await invoke<number[]>("cmd_read_image_bytes", {
           path: image.path,
         });
-        const invokeEnd = performance.now();
-        console.log(`[性能-Store] 图片 ${index} Rust读取耗时: ${(invokeEnd - invokeStart).toFixed(2)}ms, 大小: ${(bytes.length / 1024 / 1024).toFixed(2)}MB`);
+        const invokeEnd = isDev ? performance.now() : 0;
+        if (isDev) console.log(`[性能-Store] 图片 ${index} Rust读取耗时: ${(invokeEnd - invokeStart).toFixed(2)}ms, 大小: ${(bytes.length / 1024 / 1024).toFixed(2)}MB`);
         
         // 创建 Blob 和 URL
-        const blobStart = performance.now();
+        const blobStart = isDev ? performance.now() : 0;
         const blob = new Blob([new Uint8Array(bytes)], { type: getMimeType(image.path) });
         blobUrl = URL.createObjectURL(blob);
-        const blobEnd = performance.now();
-        console.log(`[性能-Store] 图片 ${index} Blob创建耗时: ${(blobEnd - blobStart).toFixed(2)}ms`);
+        const blobEnd = isDev ? performance.now() : 0;
+        if (isDev) console.log(`[性能-Store] 图片 ${index} Blob创建耗时: ${(blobEnd - blobStart).toFixed(2)}ms`);
       }
 
       // 再次检查是否已被取消（防止竞态条件）
@@ -311,8 +313,10 @@ export const useComicStore = defineStore("comic", () => {
       // 缓存 Blob URL
       currentComic.value.images[index].data = blobUrl;
 
-      const totalTime = performance.now() - startTime;
-      console.log(`[性能-Store] 图片 ${index} 总耗时: ${totalTime.toFixed(2)}ms`);
+      if (isDev) {
+        const totalTime = performance.now() - startTime;
+        console.log(`[性能-Store] 图片 ${index} 总耗时: ${totalTime.toFixed(2)}ms`);
+      }
       
       return blobUrl;
     } catch (e) {
