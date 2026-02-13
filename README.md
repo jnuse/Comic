@@ -11,13 +11,14 @@
 
 - 📚 **多格式支持** - 支持 ZIP/CBZ 压缩包和图片文件夹
 - 📜 **竖屏滚动** - 流畅的竖屏滚动阅读体验
-- 🌲 **文件树导航** - 树状图展示漫画目录结构
+- 🌲 **文件树导航** - 树状图展示漫画目录结构，支持字母排序和当前漫画高亮
 - 📍 **阅读进度** - 自动保存和恢复阅读位置
 - 🔖 **书签收藏** - 添加书签，快速定位到喜欢的页面
-- 🔍 **缩放功能** - 支持适应宽度、原始尺寸、自定义缩放
+- 🔍 **缩放功能** - 支持适应宽度、原始尺寸、自定义缩放，Ctrl+滚轮快速缩放
 - 🎨 **主题切换** - 支持浅色/深色主题
 - 🖥️ **全屏模式** - 沉浸式阅读体验
 - 📐 **宽高比锁定** - 可自定义图片显示宽高比
+- 🚀 **性能优化** - 生产环境自动禁用调试日志，提升性能
 
 ## 🖼️ 截图
 
@@ -30,7 +31,6 @@
 - **TypeScript** - 类型安全的 JavaScript
 - **Vite** - 下一代前端构建工具
 - **Pinia** - Vue 状态管理
-- **Vue Router** - Vue 官方路由
 - **VueUse** - Vue 组合式 API 工具集
 
 ### 后端
@@ -86,10 +86,12 @@ npm run tauri build
    - 📦 压缩包图标表示 ZIP/CBZ 漫画
    - 📖 书本图标表示图片文件夹
 3. **阅读漫画** - 点击漫画开始阅读，支持竖向滚动
+   - 当前打开的漫画会在文件树中高亮显示
 4. **快捷操作**
-   - 使用滚轮缩放图片
+   - 按住 Ctrl + 滚轮上下滚动可快速缩放图片
    - 点击全屏按钮进入沉浸式阅读
    - 点击书签按钮添加/管理书签
+   - 使用键盘方向键或 PageUp/PageDown 翻页
 
 ## 📁 项目结构
 
@@ -97,12 +99,17 @@ npm run tauri build
 Comic/
 ├── src/                    # 前端源码
 │   ├── components/         # Vue 组件
-│   │   ├── ComicViewer.vue    # 漫画阅读器
-│   │   ├── FileTree.vue       # 文件树
-│   │   ├── FileTreeNode.vue   # 文件树节点
+│   │   ├── ComicViewer.vue    # 漫画阅读器（支持 Ctrl+滚轮缩放）
+│   │   ├── ComicImage.vue     # 单个图片组件
+│   │   ├── ComicToolbar.vue   # 悬浮工具栏
+│   │   ├── FileTree.vue       # 文件树（字母排序+高亮）
+│   │   ├── FileTreeNode.vue   # 文件树节点（递归渲染）
 │   │   ├── BookmarksPanel.vue # 书签面板
 │   │   ├── SettingsPanel.vue  # 设置面板
 │   │   └── ThemeToggle.vue    # 主题切换
+│   ├── composables/        # 组合式函数
+│   │   ├── useImageLoader.ts  # 图片加载管理
+│   │   └── useScrollManager.ts # 滚动管理
 │   ├── stores/             # Pinia 状态管理
 │   │   ├── comic.ts           # 漫画状态
 │   │   ├── settings.ts        # 设置状态

@@ -12,7 +12,6 @@
 - `vite@6.0.3` - 构建工具
 - `typescript@5.6.2` - 类型系统
 - `pinia@3.0.4` - 状态管理
-- `vue-router@4.6.4` - 路由
 - `@vueuse/core@14.1.0` - 组合式 API 工具集
 - `@tauri-apps/api@^2` - Tauri JavaScript API
 - `@tauri-apps/plugin-dialog@2.6.0` - 文件对话框
@@ -53,26 +52,26 @@ Comic/
 │   └── vite.svg
 ├── src/                           # 前端源码 (Vue 3 + TypeScript)
 │   ├── main.ts                    # 应用入口，创建 Vue 实例，注册 Pinia
-│   ├── App.vue                    # 主应用组件，侧边栏 + 阅读器 + 全屏
+│   ├── App.vue                    # 主应用组件，侧边栏 + 阅读器 + 全屏模式
 │   ├── vite-env.d.ts              # Vite 类型声明
 │   ├── assets/
 │   │   └── vue.svg
 │   ├── components/
-│   │   ├── ComicViewer.vue        # 漫画阅读器主组件：整合子组件和逻辑
+│   │   ├── ComicViewer.vue        # 漫画阅读器主组件：整合子组件和逻辑，支持 Ctrl+滚轮缩放
 │   │   ├── ComicImage.vue         # 单个图片组件：显示图片或占位符
 │   │   ├── ComicToolbar.vue       # 悬浮工具栏：翻页、书签、缩放控制
-│   │   ├── FileTree.vue           # 文件树导航容器
-│   │   ├── FileTreeNode.vue       # 文件树节点，递归渲染
+│   │   ├── FileTree.vue           # 文件树导航容器：支持字母排序和当前漫画高亮
+│   │   ├── FileTreeNode.vue       # 文件树节点：递归渲染，支持高亮当前打开的漫画
 │   │   ├── BookmarksPanel.vue     # 书签管理面板
 │   │   ├── SettingsPanel.vue      # 设置面板 (主题、缩放、比例)
 │   │   └── ThemeToggle.vue        # 浅色/深色主题切换
 │   ├── composables/
 │   │   ├── index.ts               # Composables 统一导出
-│   │   ├── useImageLoader.ts      # 图片加载队列管理：并发控制、优先级排序
+│   │   ├── useImageLoader.ts      # 图片加载队列管理：并发控制、优先级排序、条件化日志
 │   │   └── useScrollManager.ts    # 滚动管理：位置追踪、进度保存、翻页导航
 │   ├── stores/
 │   │   ├── index.ts               # Store 统一导出
-│   │   ├── comic.ts               # 漫画状态 (文件树、当前漫画、图片)
+│   │   ├── comic.ts               # 漫画状态：文件树、当前漫画、图片加载、条件化日志
 │   │   ├── settings.ts            # 设置状态 (主题、缩放模式、预加载)
 │   │   └── bookmarks.ts           # 书签和阅读进度状态
 │   └── types/
