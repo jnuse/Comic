@@ -1,16 +1,13 @@
 <template>
     <div class="file-tree">
-        <template v-if="trees && trees.length > 0">
-            <div v-for="tree in trees" :key="tree.path" class="tree-root">
-                <div class="root-header">
-                    <button class="remove-btn" @click="$emit('remove', tree.path)" title="移除此文件夹">
-                        ✕
-                    </button>
-                    <span class="root-path" :title="tree.path">{{ tree.name }}</span>
-                </div>
-                <FileTreeNode :node="tree" :expanded-paths="expandedPaths" @toggle="toggleExpand"
-                    @select="handleSelect" />
-            </div>
+        <template v-if="rootNode">
+            <FileTreeNode
+                :node="rootNode"
+                :expanded-paths="expandedPaths"
+                :is-root="true"
+                @toggle="toggleExpand"
+                @select="handleSelect"
+                @remove="handleRemove" />
         </template>
         <div v-else class="empty-tree">
             <span>请选择一个文件夹</span>
@@ -19,7 +16,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { FileNode } from '../types';
 import FileTreeNode from './FileTreeNode.vue';
 
@@ -32,13 +29,33 @@ const emit = defineEmits<{
     (e: 'remove', path: string): void;
 }>();
 
-const expandedPaths = ref<Set<string>>(new Set());
+const expandedPaths = ref<Set<string>>(new Set(['__root__']));
+
+// 创建虚拟根节点
+const rootNode = computed<FileNode | null>(() => {
+    if (!props.trees || props.trees.length === 0) {
+        return null;
+    }
+    
+    return {
+        name: '所有文件夹',
+        path: '__root__',
+        isDirectory: true,
+        isComic: false,
+        isZip: false,
+        imageCount: 0,
+        children: props.trees,
+    };
+});
 
 // 监听树的变化，自动展开新添加的根节点
 watch(
     () => props.trees,
     (newTrees, oldTrees) => {
         if (!newTrees || newTrees.length === 0) return;
+        
+        // 确保虚拟根节点始终展开
+        expandedPaths.value.add('__root__');
         
         // 找出新添加的树
         const oldPaths = new Set(oldTrees?.map(t => t.path) || []);
@@ -53,6 +70,9 @@ watch(
 );
 
 function toggleExpand(path: string) {
+    // 虚拟根节点不允许折叠
+    if (path === '__root__') return;
+    
     if (expandedPaths.value.has(path)) {
         expandedPaths.value.delete(path);
     } else {
@@ -62,6 +82,10 @@ function toggleExpand(path: string) {
 
 function handleSelect(node: FileNode) {
     emit('select', node);
+}
+
+function handleRemove(path: string) {
+    emit('remove', path);
 }
 
 // 展开到指定路径
@@ -87,53 +111,6 @@ defineExpose({
     font-size: 14px;
     user-select: none;
     overflow-x: auto;
-}
-
-.tree-root {
-    margin-bottom: 12px;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 8px;
-}
-
-.tree-root:last-child {
-    border-bottom: none;
-}
-
-.root-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-    margin-bottom: 4px;
-    background-color: var(--item-bg);
-    border-radius: 4px;
-}
-
-.remove-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 14px;
-    line-height: 1;
-    transition: all 0.15s;
-}
-
-.remove-btn:hover {
-    background-color: var(--hover-bg);
-    color: var(--text-color);
-}
-
-.root-path {
-    flex: 1;
-    font-weight: 500;
-    color: var(--text-color);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 13px;
 }
 
 .empty-tree {
